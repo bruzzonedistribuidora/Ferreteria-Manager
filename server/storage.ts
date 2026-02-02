@@ -6,6 +6,7 @@ import {
   roles, modules, roleModulePermissions, users,
   clientAuthorizedContacts, clientAccountMovements,
   suppliers, supplierAccountMovements, supplierProductDiscounts,
+  paymentMethods, cardConfigurations, cardInstallmentPlans, bankAccounts,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -21,7 +22,11 @@ import {
   type ClientWithDetails, type ClientAccountSummary, type CreateAccountMovementRequest,
   type Supplier, type InsertSupplier, type SupplierAccountMovement, type SupplierProductDiscount,
   type SupplierWithDetails, type SupplierAccountSummary, type CreateSupplierMovementRequest,
-  type InsertSupplierMovement, type InsertSupplierDiscount
+  type InsertSupplierMovement, type InsertSupplierDiscount,
+  type PaymentMethod, type InsertPaymentMethod,
+  type CardConfiguration, type InsertCardConfig, type CardWithPlans,
+  type CardInstallmentPlan, type InsertCardInstallment,
+  type BankAccount, type InsertBankAccount
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -122,6 +127,38 @@ export interface IStorage {
   createSupplierDiscount(discount: InsertSupplierDiscount): Promise<SupplierProductDiscount>;
   updateSupplierDiscount(id: number, updates: Partial<InsertSupplierDiscount>): Promise<SupplierProductDiscount>;
   deleteSupplierDiscount(id: number): Promise<void>;
+
+  // Payment Methods
+  getPaymentMethods(): Promise<PaymentMethod[]>;
+  getActivePaymentMethods(): Promise<PaymentMethod[]>;
+  createPaymentMethod(method: InsertPaymentMethod): Promise<PaymentMethod>;
+  updatePaymentMethod(id: number, updates: Partial<InsertPaymentMethod>): Promise<PaymentMethod>;
+  deletePaymentMethod(id: number): Promise<void>;
+  seedDefaultPaymentMethods(): Promise<void>;
+
+  // Card Configurations
+  getCardConfigurations(): Promise<CardConfiguration[]>;
+  getActiveCards(): Promise<CardConfiguration[]>;
+  getCardWithPlans(cardId: number): Promise<CardWithPlans | undefined>;
+  getAllCardsWithPlans(): Promise<CardWithPlans[]>;
+  createCardConfiguration(config: InsertCardConfig): Promise<CardConfiguration>;
+  updateCardConfiguration(id: number, updates: Partial<InsertCardConfig>): Promise<CardConfiguration>;
+  deleteCardConfiguration(id: number): Promise<void>;
+  seedDefaultCardConfigs(): Promise<void>;
+
+  // Installment Plans
+  getCardInstallmentPlans(cardConfigId: number): Promise<CardInstallmentPlan[]>;
+  createInstallmentPlan(plan: InsertCardInstallment): Promise<CardInstallmentPlan>;
+  updateInstallmentPlan(id: number, updates: Partial<InsertCardInstallment>): Promise<CardInstallmentPlan>;
+  deleteInstallmentPlan(id: number): Promise<void>;
+
+  // Bank Accounts
+  getBankAccounts(): Promise<BankAccount[]>;
+  getActiveBankAccounts(): Promise<BankAccount[]>;
+  getBankAccount(id: number): Promise<BankAccount | undefined>;
+  createBankAccount(account: InsertBankAccount): Promise<BankAccount>;
+  updateBankAccount(id: number, updates: Partial<InsertBankAccount>): Promise<BankAccount>;
+  deleteBankAccount(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1141,6 +1178,217 @@ export class DatabaseStorage implements IStorage {
     await db.update(supplierProductDiscounts)
       .set({ isActive: false })
       .where(eq(supplierProductDiscounts.id, id));
+  }
+
+  // === PAYMENT METHODS ===
+  async getPaymentMethods(): Promise<PaymentMethod[]> {
+    return await db.select().from(paymentMethods).orderBy(paymentMethods.sortOrder);
+  }
+
+  async getActivePaymentMethods(): Promise<PaymentMethod[]> {
+    return await db.select().from(paymentMethods)
+      .where(eq(paymentMethods.isActive, true))
+      .orderBy(paymentMethods.sortOrder);
+  }
+
+  async createPaymentMethod(method: InsertPaymentMethod): Promise<PaymentMethod> {
+    const [newMethod] = await db.insert(paymentMethods).values(method).returning();
+    return newMethod;
+  }
+
+  async updatePaymentMethod(id: number, updates: Partial<InsertPaymentMethod>): Promise<PaymentMethod> {
+    const [updated] = await db.update(paymentMethods)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(paymentMethods.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePaymentMethod(id: number): Promise<void> {
+    await db.update(paymentMethods)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(paymentMethods.id, id));
+  }
+
+  async seedDefaultPaymentMethods(): Promise<void> {
+    const existing = await db.select().from(paymentMethods);
+    if (existing.length === 0) {
+      const defaults: InsertPaymentMethod[] = [
+        { code: "cash", name: "Efectivo", sortOrder: 1 },
+        { code: "card", name: "Tarjeta", allowsInstallments: true, sortOrder: 2 },
+        { code: "transfer", name: "Transferencia", requiresReference: true, sortOrder: 3 },
+        { code: "check", name: "Cheque", requiresReference: true, sortOrder: 4 },
+        { code: "credit_account", name: "Cuenta Corriente", sortOrder: 5 },
+        { code: "echeq", name: "E-Cheq", requiresReference: true, sortOrder: 6 },
+      ];
+      await db.insert(paymentMethods).values(defaults);
+    }
+  }
+
+  // === CARD CONFIGURATIONS ===
+  async getCardConfigurations(): Promise<CardConfiguration[]> {
+    return await db.select().from(cardConfigurations);
+  }
+
+  async getActiveCards(): Promise<CardConfiguration[]> {
+    return await db.select().from(cardConfigurations)
+      .where(eq(cardConfigurations.isActive, true));
+  }
+
+  async getCardWithPlans(cardId: number): Promise<CardWithPlans | undefined> {
+    const [card] = await db.select().from(cardConfigurations)
+      .where(eq(cardConfigurations.id, cardId));
+    if (!card) return undefined;
+    
+    const plans = await db.select().from(cardInstallmentPlans)
+      .where(and(
+        eq(cardInstallmentPlans.cardConfigId, cardId),
+        eq(cardInstallmentPlans.isActive, true)
+      ))
+      .orderBy(cardInstallmentPlans.installments);
+    
+    return { ...card, installmentPlans: plans };
+  }
+
+  async getAllCardsWithPlans(): Promise<CardWithPlans[]> {
+    const cards = await db.select().from(cardConfigurations);
+    const result: CardWithPlans[] = [];
+    
+    for (const card of cards) {
+      const plans = await db.select().from(cardInstallmentPlans)
+        .where(and(
+          eq(cardInstallmentPlans.cardConfigId, card.id),
+          eq(cardInstallmentPlans.isActive, true)
+        ))
+        .orderBy(cardInstallmentPlans.installments);
+      result.push({ ...card, installmentPlans: plans });
+    }
+    
+    return result;
+  }
+
+  async createCardConfiguration(config: InsertCardConfig): Promise<CardConfiguration> {
+    const [newCard] = await db.insert(cardConfigurations).values(config).returning();
+    return newCard;
+  }
+
+  async updateCardConfiguration(id: number, updates: Partial<InsertCardConfig>): Promise<CardConfiguration> {
+    const [updated] = await db.update(cardConfigurations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(cardConfigurations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCardConfiguration(id: number): Promise<void> {
+    await db.update(cardConfigurations)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(cardConfigurations.id, id));
+  }
+
+  // === INSTALLMENT PLANS ===
+  async getCardInstallmentPlans(cardConfigId: number): Promise<CardInstallmentPlan[]> {
+    return await db.select().from(cardInstallmentPlans)
+      .where(eq(cardInstallmentPlans.cardConfigId, cardConfigId))
+      .orderBy(cardInstallmentPlans.installments);
+  }
+
+  async createInstallmentPlan(plan: InsertCardInstallment): Promise<CardInstallmentPlan> {
+    const [newPlan] = await db.insert(cardInstallmentPlans).values(plan).returning();
+    return newPlan;
+  }
+
+  async updateInstallmentPlan(id: number, updates: Partial<InsertCardInstallment>): Promise<CardInstallmentPlan> {
+    const [updated] = await db.update(cardInstallmentPlans)
+      .set(updates)
+      .where(eq(cardInstallmentPlans.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteInstallmentPlan(id: number): Promise<void> {
+    await db.update(cardInstallmentPlans)
+      .set({ isActive: false })
+      .where(eq(cardInstallmentPlans.id, id));
+  }
+
+  async seedDefaultCardConfigs(): Promise<void> {
+    const existing = await db.select().from(cardConfigurations);
+    if (existing.length === 0) {
+      const defaultCards: InsertCardConfig[] = [
+        { cardBrand: "visa", cardType: "credit", displayName: "Visa Crédito", maxInstallments: 12 },
+        { cardBrand: "visa", cardType: "debit", displayName: "Visa Débito", maxInstallments: 1 },
+        { cardBrand: "mastercard", cardType: "credit", displayName: "Mastercard Crédito", maxInstallments: 12 },
+        { cardBrand: "mastercard", cardType: "debit", displayName: "Mastercard Débito", maxInstallments: 1 },
+        { cardBrand: "amex", cardType: "credit", displayName: "American Express", maxInstallments: 12 },
+        { cardBrand: "cabal", cardType: "credit", displayName: "Cabal Crédito", maxInstallments: 6 },
+        { cardBrand: "naranja", cardType: "credit", displayName: "Naranja", maxInstallments: 12 },
+      ];
+      
+      for (const card of defaultCards) {
+        const [inserted] = await db.insert(cardConfigurations).values(card).returning();
+        
+        // Add default installment plans for credit cards
+        if (card.cardType === "credit" && card.maxInstallments && card.maxInstallments > 1) {
+          const plans: InsertCardInstallment[] = [
+            { cardConfigId: inserted.id, installments: 1, surchargePercent: "0", description: "1 pago" },
+            { cardConfigId: inserted.id, installments: 3, surchargePercent: "5", description: "3 cuotas" },
+            { cardConfigId: inserted.id, installments: 6, surchargePercent: "10", description: "6 cuotas" },
+          ];
+          if (card.maxInstallments >= 12) {
+            plans.push({ cardConfigId: inserted.id, installments: 12, surchargePercent: "15", description: "12 cuotas" });
+          }
+          await db.insert(cardInstallmentPlans).values(plans);
+        }
+      }
+    }
+  }
+
+  // === BANK ACCOUNTS ===
+  async getBankAccounts(): Promise<BankAccount[]> {
+    return await db.select().from(bankAccounts);
+  }
+
+  async getActiveBankAccounts(): Promise<BankAccount[]> {
+    return await db.select().from(bankAccounts)
+      .where(eq(bankAccounts.isActive, true));
+  }
+
+  async getBankAccount(id: number): Promise<BankAccount | undefined> {
+    const [account] = await db.select().from(bankAccounts)
+      .where(eq(bankAccounts.id, id));
+    return account;
+  }
+
+  async createBankAccount(account: InsertBankAccount): Promise<BankAccount> {
+    // If setting as default, unset other defaults
+    if (account.isDefault) {
+      await db.update(bankAccounts)
+        .set({ isDefault: false })
+        .where(eq(bankAccounts.isDefault, true));
+    }
+    const [newAccount] = await db.insert(bankAccounts).values(account).returning();
+    return newAccount;
+  }
+
+  async updateBankAccount(id: number, updates: Partial<InsertBankAccount>): Promise<BankAccount> {
+    // If setting as default, unset other defaults
+    if (updates.isDefault) {
+      await db.update(bankAccounts)
+        .set({ isDefault: false })
+        .where(eq(bankAccounts.isDefault, true));
+    }
+    const [updated] = await db.update(bankAccounts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(bankAccounts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteBankAccount(id: number): Promise<void> {
+    await db.update(bankAccounts)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(bankAccounts.id, id));
   }
 }
 

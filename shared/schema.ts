@@ -524,3 +524,88 @@ export type CreateSupplierMovementRequest = {
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
 export type InsertSupplierMovement = z.infer<typeof insertSupplierMovementSchema>;
 export type InsertSupplierDiscount = z.infer<typeof insertSupplierDiscountSchema>;
+
+// === PAYMENT METHODS MODULE ===
+export const paymentMethods = pgTable("payment_methods", {
+  id: serial("id").primaryKey(),
+  code: text("code").unique().notNull(), // cash, card, transfer, check, credit_account, echeq
+  name: text("name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  requiresReference: boolean("requires_reference").default(false), // Needs transaction number
+  allowsInstallments: boolean("allows_installments").default(false),
+  defaultSurchargePercent: numeric("default_surcharge_percent", { precision: 5, scale: 2 }).default("0"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const cardConfigurations = pgTable("card_configurations", {
+  id: serial("id").primaryKey(),
+  cardBrand: text("card_brand").notNull(), // visa, mastercard, amex, cabal, naranja, etc.
+  cardType: text("card_type").notNull(), // credit, debit
+  displayName: text("display_name").notNull(),
+  isActive: boolean("is_active").default(true),
+  defaultSurchargePercent: numeric("default_surcharge_percent", { precision: 5, scale: 2 }).default("0"),
+  maxInstallments: integer("max_installments").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const cardInstallmentPlans = pgTable("card_installment_plans", {
+  id: serial("id").primaryKey(),
+  cardConfigId: integer("card_config_id").notNull().references(() => cardConfigurations.id),
+  installments: integer("installments").notNull(), // 1, 3, 6, 12, etc.
+  surchargePercent: numeric("surcharge_percent", { precision: 5, scale: 2 }).notNull(),
+  isActive: boolean("is_active").default(true),
+  description: text("description"), // "3 cuotas sin interés", etc.
+});
+
+export const bankAccounts = pgTable("bank_accounts", {
+  id: serial("id").primaryKey(),
+  bankName: text("bank_name").notNull(),
+  accountType: text("account_type").notNull(), // checking, savings
+  accountNumber: text("account_number"),
+  cbu: text("cbu"), // CBU for Argentina
+  alias: text("alias"), // Bank alias
+  holderName: text("holder_name").notNull(),
+  holderCuit: text("holder_cuit"),
+  isActive: boolean("is_active").default(true),
+  isDefault: boolean("is_default").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Relations
+export const cardConfigRelations = relations(cardConfigurations, ({ many }) => ({
+  installmentPlans: many(cardInstallmentPlans),
+}));
+
+export const cardInstallmentRelations = relations(cardInstallmentPlans, ({ one }) => ({
+  cardConfig: one(cardConfigurations, {
+    fields: [cardInstallmentPlans.cardConfigId],
+    references: [cardConfigurations.id],
+  }),
+}));
+
+// Insert schemas
+export const insertPaymentMethodSchema = createInsertSchema(paymentMethods).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCardConfigSchema = createInsertSchema(cardConfigurations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCardInstallmentSchema = createInsertSchema(cardInstallmentPlans).omit({ id: true });
+export const insertBankAccountSchema = createInsertSchema(bankAccounts).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Types
+export type PaymentMethod = typeof paymentMethods.$inferSelect;
+export type CardConfiguration = typeof cardConfigurations.$inferSelect;
+export type CardInstallmentPlan = typeof cardInstallmentPlans.$inferSelect;
+export type BankAccount = typeof bankAccounts.$inferSelect;
+export type InsertPaymentMethod = z.infer<typeof insertPaymentMethodSchema>;
+export type InsertCardConfig = z.infer<typeof insertCardConfigSchema>;
+export type InsertCardInstallment = z.infer<typeof insertCardInstallmentSchema>;
+export type InsertBankAccount = z.infer<typeof insertBankAccountSchema>;
+
+// Card with installment plans
+export type CardWithPlans = CardConfiguration & {
+  installmentPlans: CardInstallmentPlan[];
+};

@@ -15,6 +15,7 @@ import SalesHistory from "@/pages/SalesHistory";
 import Remitos from "@/pages/Remitos";
 import Users from "@/pages/Users";
 import Suppliers from "@/pages/Suppliers";
+import PaymentMethods from "@/pages/PaymentMethods";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 
@@ -75,6 +76,7 @@ function Router() {
       <Route path="/sales" component={SalesHistory} />
       <Route path="/remitos" component={Remitos} />
       <Route path="/suppliers" component={Suppliers} />
+      <Route path="/payment-methods" component={PaymentMethods} />
       <Route path="/users" component={Users} />
       <Route component={NotFound} />
     </Switch>

@@ -607,5 +607,232 @@ export async function registerRoutes(
     res.json(user);
   });
 
+  // === PAYMENT METHODS MODULE ===
+  // Seed default data on startup
+  await storage.seedDefaultPaymentMethods();
+  await storage.seedDefaultCardConfigs();
+
+  // Payment Methods
+  app.get("/api/payment-methods", isAuthenticated, async (req, res) => {
+    const methods = await storage.getPaymentMethods();
+    res.json(methods);
+  });
+
+  app.get("/api/payment-methods/active", isAuthenticated, async (req, res) => {
+    const methods = await storage.getActivePaymentMethods();
+    res.json(methods);
+  });
+
+  app.post("/api/payment-methods", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        code: z.string(),
+        name: z.string(),
+        description: z.string().optional(),
+        isActive: z.boolean().optional(),
+        requiresReference: z.boolean().optional(),
+        allowsInstallments: z.boolean().optional(),
+        defaultSurchargePercent: z.string().optional(),
+        sortOrder: z.number().optional()
+      });
+      const input = schema.parse(req.body);
+      const method = await storage.createPaymentMethod(input);
+      res.status(201).json(method);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put("/api/payment-methods/:id", isAuthenticated, async (req, res) => {
+    const schema = z.object({
+      code: z.string().optional(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      isActive: z.boolean().optional(),
+      requiresReference: z.boolean().optional(),
+      allowsInstallments: z.boolean().optional(),
+      defaultSurchargePercent: z.string().optional(),
+      sortOrder: z.number().optional()
+    });
+    const input = schema.parse(req.body);
+    const method = await storage.updatePaymentMethod(Number(req.params.id), input);
+    res.json(method);
+  });
+
+  app.delete("/api/payment-methods/:id", isAuthenticated, async (req, res) => {
+    await storage.deletePaymentMethod(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // Card Configurations
+  app.get("/api/cards", isAuthenticated, async (req, res) => {
+    const cards = await storage.getAllCardsWithPlans();
+    res.json(cards);
+  });
+
+  app.get("/api/cards/active", isAuthenticated, async (req, res) => {
+    const cards = await storage.getActiveCards();
+    res.json(cards);
+  });
+
+  app.get("/api/cards/:id", isAuthenticated, async (req, res) => {
+    const card = await storage.getCardWithPlans(Number(req.params.id));
+    if (!card) return res.status(404).json({ message: "Card not found" });
+    res.json(card);
+  });
+
+  app.post("/api/cards", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        cardBrand: z.string(),
+        cardType: z.string(),
+        displayName: z.string(),
+        isActive: z.boolean().optional(),
+        defaultSurchargePercent: z.string().optional(),
+        maxInstallments: z.number().optional()
+      });
+      const input = schema.parse(req.body);
+      const card = await storage.createCardConfiguration(input);
+      res.status(201).json(card);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put("/api/cards/:id", isAuthenticated, async (req, res) => {
+    const schema = z.object({
+      cardBrand: z.string().optional(),
+      cardType: z.string().optional(),
+      displayName: z.string().optional(),
+      isActive: z.boolean().optional(),
+      defaultSurchargePercent: z.string().optional(),
+      maxInstallments: z.number().optional()
+    });
+    const input = schema.parse(req.body);
+    const card = await storage.updateCardConfiguration(Number(req.params.id), input);
+    res.json(card);
+  });
+
+  app.delete("/api/cards/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteCardConfiguration(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // Installment Plans
+  app.get("/api/cards/:cardId/installments", isAuthenticated, async (req, res) => {
+    const plans = await storage.getCardInstallmentPlans(Number(req.params.cardId));
+    res.json(plans);
+  });
+
+  app.post("/api/cards/:cardId/installments", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        installments: z.number(),
+        surchargePercent: z.string(),
+        isActive: z.boolean().optional(),
+        description: z.string().optional()
+      });
+      const input = schema.parse(req.body);
+      const plan = await storage.createInstallmentPlan({
+        ...input,
+        cardConfigId: Number(req.params.cardId)
+      });
+      res.status(201).json(plan);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put("/api/installments/:id", isAuthenticated, async (req, res) => {
+    const schema = z.object({
+      installments: z.number().optional(),
+      surchargePercent: z.string().optional(),
+      isActive: z.boolean().optional(),
+      description: z.string().optional()
+    });
+    const input = schema.parse(req.body);
+    const plan = await storage.updateInstallmentPlan(Number(req.params.id), input);
+    res.json(plan);
+  });
+
+  app.delete("/api/installments/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteInstallmentPlan(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // Bank Accounts
+  app.get("/api/bank-accounts", isAuthenticated, async (req, res) => {
+    const accounts = await storage.getBankAccounts();
+    res.json(accounts);
+  });
+
+  app.get("/api/bank-accounts/active", isAuthenticated, async (req, res) => {
+    const accounts = await storage.getActiveBankAccounts();
+    res.json(accounts);
+  });
+
+  app.get("/api/bank-accounts/:id", isAuthenticated, async (req, res) => {
+    const account = await storage.getBankAccount(Number(req.params.id));
+    if (!account) return res.status(404).json({ message: "Bank account not found" });
+    res.json(account);
+  });
+
+  app.post("/api/bank-accounts", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        bankName: z.string(),
+        accountType: z.string(),
+        accountNumber: z.string().optional(),
+        cbu: z.string().optional(),
+        alias: z.string().optional(),
+        holderName: z.string(),
+        holderCuit: z.string().optional(),
+        isActive: z.boolean().optional(),
+        isDefault: z.boolean().optional(),
+        notes: z.string().optional()
+      });
+      const input = schema.parse(req.body);
+      const account = await storage.createBankAccount(input);
+      res.status(201).json(account);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put("/api/bank-accounts/:id", isAuthenticated, async (req, res) => {
+    const schema = z.object({
+      bankName: z.string().optional(),
+      accountType: z.string().optional(),
+      accountNumber: z.string().optional(),
+      cbu: z.string().optional(),
+      alias: z.string().optional(),
+      holderName: z.string().optional(),
+      holderCuit: z.string().optional(),
+      isActive: z.boolean().optional(),
+      isDefault: z.boolean().optional(),
+      notes: z.string().optional()
+    });
+    const input = schema.parse(req.body);
+    const account = await storage.updateBankAccount(Number(req.params.id), input);
+    res.json(account);
+  });
+
+  app.delete("/api/bank-accounts/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteBankAccount(Number(req.params.id));
+    res.status(204).send();
+  });
+
   return httpServer;
 }
