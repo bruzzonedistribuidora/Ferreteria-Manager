@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, ShoppingCart, Package, Users, Receipt, LogOut } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Package, Users, Receipt, FileText, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -8,6 +8,7 @@ const menuItems = [
   { icon: ShoppingCart, label: "Punto de Venta", href: "/pos" },
   { icon: Package, label: "Productos", href: "/products" },
   { icon: Users, label: "Clientes", href: "/clients" },
+  { icon: FileText, label: "Remitos", href: "/remitos" },
   { icon: Receipt, label: "Historial de Ventas", href: "/sales" },
 ];
 
