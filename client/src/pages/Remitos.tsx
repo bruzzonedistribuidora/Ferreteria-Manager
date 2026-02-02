@@ -396,6 +396,14 @@ function NuevoRemitoTab() {
 function ListaRemitosTab() {
   const { data: deliveryNotes, isLoading } = useDeliveryNotes();
   const [viewNote, setViewNote] = useState<DeliveryNoteWithDetails | null>(null);
+  const [activeFolder, setActiveFolder] = useState<"pending" | "invoiced" | "cancelled">("pending");
+
+  const pendingNotes = useMemo(() => 
+    deliveryNotes?.filter(n => n.status === 'pending') || [], [deliveryNotes]);
+  const invoicedNotes = useMemo(() => 
+    deliveryNotes?.filter(n => n.status === 'invoiced') || [], [deliveryNotes]);
+  const cancelledNotes = useMemo(() => 
+    deliveryNotes?.filter(n => n.status === 'cancelled') || [], [deliveryNotes]);
 
   const getStatusBadge = (status: string | null) => {
     switch (status) {
@@ -410,6 +418,54 @@ function ListaRemitosTab() {
     }
   };
 
+  const renderNotesList = (notes: DeliveryNoteWithDetails[]) => {
+    if (notes.length === 0) {
+      return (
+        <div className="text-center py-8 text-gray-500">
+          <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p>No hay remitos en esta carpeta</p>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-3">
+        {notes.map(note => (
+          <Card key={note.id} className="hover-elevate" data-testid={`card-remito-${note.id}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="font-semibold text-orange-600">{note.noteNumber}</p>
+                    <p className="text-sm text-gray-600">{note.client?.name}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">
+                      {note.createdAt && format(new Date(note.createdAt), "dd/MM/yyyy", { locale: es })}
+                    </p>
+                    <p className="font-medium">
+                      ${note.items.reduce((sum, item) => sum + Number(item.subtotal), 0).toLocaleString()}
+                    </p>
+                  </div>
+                  {getStatusBadge(note.status)}
+                  <Button 
+                    size="icon" 
+                    variant="ghost"
+                    onClick={() => setViewNote(note)}
+                    data-testid={`button-view-remito-${note.id}`}
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -420,56 +476,80 @@ function ListaRemitosTab() {
 
   return (
     <>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card 
+          className={`cursor-pointer transition-all ${activeFolder === 'pending' ? 'ring-2 ring-orange-500 bg-orange-50' : 'hover-elevate'}`}
+          onClick={() => setActiveFolder('pending')}
+          data-testid="folder-pending"
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 bg-yellow-100 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-yellow-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">Por Facturar</p>
+              <p className="text-sm text-gray-500">{pendingNotes.length} remito{pendingNotes.length !== 1 ? 's' : ''}</p>
+            </div>
+            <Badge className="ml-auto bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
+              ${pendingNotes.reduce((sum, n) => sum + n.items.reduce((s, i) => s + Number(i.subtotal), 0), 0).toLocaleString()}
+            </Badge>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer transition-all ${activeFolder === 'invoiced' ? 'ring-2 ring-orange-500 bg-orange-50' : 'hover-elevate'}`}
+          onClick={() => setActiveFolder('invoiced')}
+          data-testid="folder-invoiced"
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <FileCheck className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">Facturados</p>
+              <p className="text-sm text-gray-500">{invoicedNotes.length} remito{invoicedNotes.length !== 1 ? 's' : ''}</p>
+            </div>
+            <Badge className="ml-auto bg-green-100 text-green-700 hover:bg-green-100">
+              ${invoicedNotes.reduce((sum, n) => sum + n.items.reduce((s, i) => s + Number(i.subtotal), 0), 0).toLocaleString()}
+            </Badge>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer transition-all ${activeFolder === 'cancelled' ? 'ring-2 ring-orange-500 bg-orange-50' : 'hover-elevate'}`}
+          onClick={() => setActiveFolder('cancelled')}
+          data-testid="folder-cancelled"
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 bg-red-100 rounded-lg">
+              <Trash2 className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">Anulados</p>
+              <p className="text-sm text-gray-500">{cancelledNotes.length} remito{cancelledNotes.length !== 1 ? 's' : ''}</p>
+            </div>
+            <Badge className="ml-auto bg-red-100 text-red-700 hover:bg-red-100">
+              ${cancelledNotes.reduce((sum, n) => sum + n.items.reduce((s, i) => s + Number(i.subtotal), 0), 0).toLocaleString()}
+            </Badge>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-orange-500" />
-            Todos los Remitos
+            {activeFolder === 'pending' && <AlertCircle className="w-5 h-5 text-yellow-500" />}
+            {activeFolder === 'invoiced' && <FileCheck className="w-5 h-5 text-green-500" />}
+            {activeFolder === 'cancelled' && <Trash2 className="w-5 h-5 text-red-500" />}
+            {activeFolder === 'pending' && 'Remitos Por Facturar'}
+            {activeFolder === 'invoiced' && 'Remitos Facturados'}
+            {activeFolder === 'cancelled' && 'Remitos Anulados'}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {!deliveryNotes || deliveryNotes.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No hay remitos registrados</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {deliveryNotes.map(note => (
-                <Card key={note.id} className="hover-elevate" data-testid={`card-remito-${note.id}`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <p className="font-semibold text-orange-600">{note.noteNumber}</p>
-                          <p className="text-sm text-gray-600">{note.client?.name}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <p className="text-sm text-gray-500">
-                            {note.createdAt && format(new Date(note.createdAt), "dd/MM/yyyy", { locale: es })}
-                          </p>
-                          <p className="font-medium">
-                            ${note.items.reduce((sum, item) => sum + Number(item.subtotal), 0).toLocaleString()}
-                          </p>
-                        </div>
-                        {getStatusBadge(note.status)}
-                        <Button 
-                          size="icon" 
-                          variant="ghost"
-                          onClick={() => setViewNote(note)}
-                          data-testid={`button-view-remito-${note.id}`}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+          {activeFolder === 'pending' && renderNotesList(pendingNotes)}
+          {activeFolder === 'invoiced' && renderNotesList(invoicedNotes)}
+          {activeFolder === 'cancelled' && renderNotesList(cancelledNotes)}
         </CardContent>
       </Card>
 
