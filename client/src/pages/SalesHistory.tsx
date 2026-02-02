@@ -2,9 +2,13 @@ import { Layout } from "@/components/Layout";
 import { useSales } from "@/hooks/use-sales";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Receipt, Calendar, CreditCard, Banknote, ArrowRightLeft } from "lucide-react";
+import { Receipt, Calendar, CreditCard, Banknote, ArrowRightLeft, FileText } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 const paymentMethodLabels: Record<string, string> = {
   cash: "Efectivo",
@@ -20,6 +24,29 @@ const paymentMethodIcons: Record<string, any> = {
 
 export default function SalesHistory() {
   const { data: sales, isLoading } = useSales();
+  const { toast } = useToast();
+  
+  const convertToRemito = useMutation({
+    mutationFn: async (saleId: number) => {
+      const res = await apiRequest("POST", `/api/sales/${saleId}/convert-to-remito`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/delivery-notes"] });
+      toast({
+        title: "Remito Creado",
+        description: `Se generó el remito ${data.noteNumber} exitosamente.`,
+      });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Error",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
+  });
 
   return (
     <Layout>
@@ -43,17 +70,18 @@ export default function SalesHistory() {
                   <TableHead>Método de Pago</TableHead>
                   <TableHead className="text-center">Artículos</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Estado</TableHead>
+                  <TableHead className="text-center">Estado</TableHead>
+                  <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">Cargando historial...</TableCell>
+                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">Cargando historial...</TableCell>
                   </TableRow>
                 ) : sales?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">No hay ventas registradas aún.</TableCell>
+                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">No hay ventas registradas aún.</TableCell>
                   </TableRow>
                 ) : (
                   sales?.map((sale: any) => {
@@ -86,10 +114,30 @@ export default function SalesHistory() {
                         <TableCell className="text-right font-bold text-slate-900">
                           ${Number(sale.totalAmount).toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-                            {sale.status === 'completed' ? 'Completada' : sale.status}
+                        <TableCell className="text-center">
+                          <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${
+                            sale.status === 'converted' 
+                              ? 'bg-blue-50 text-blue-700 ring-blue-600/20' 
+                              : 'bg-green-50 text-green-700 ring-green-600/20'
+                          }`}>
+                            {sale.status === 'completed' ? 'Completada' : sale.status === 'converted' ? 'Remitada' : sale.status}
                           </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {sale.clientId && sale.status !== 'converted' && sale.documentType !== 'presupuesto' ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => convertToRemito.mutate(sale.id)}
+                              disabled={convertToRemito.isPending}
+                              data-testid={`button-convert-remito-${sale.id}`}
+                            >
+                              <FileText className="h-4 w-4 mr-1" />
+                              A Remito
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     );
