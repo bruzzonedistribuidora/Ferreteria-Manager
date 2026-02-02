@@ -13,6 +13,7 @@ import Clients from "@/pages/Clients";
 import Pos from "@/pages/Pos";
 import SalesHistory from "@/pages/SalesHistory";
 import Remitos from "@/pages/Remitos";
+import Users from "@/pages/Users";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 
@@ -72,6 +73,7 @@ function Router() {
       <Route path="/clients" component={Clients} />
       <Route path="/sales" component={SalesHistory} />
       <Route path="/remitos" component={Remitos} />
+      <Route path="/users" component={Users} />
       <Route component={NotFound} />
     </Switch>
   );

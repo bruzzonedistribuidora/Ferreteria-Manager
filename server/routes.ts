@@ -262,5 +262,109 @@ export async function registerRoutes(
     console.log("Database seeded!");
   }
 
+  // Seed default roles and modules
+  await storage.seedDefaultRolesAndModules();
+
+  // === Roles Routes ===
+  app.get("/api/roles", isAuthenticated, async (req, res) => {
+    const roles = await storage.getRoles();
+    res.json(roles);
+  });
+
+  app.get("/api/roles/:id", isAuthenticated, async (req, res) => {
+    const role = await storage.getRole(Number(req.params.id));
+    if (!role) return res.status(404).json({ message: "Role not found" });
+    res.json(role);
+  });
+
+  app.post("/api/roles", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        name: z.string().min(1),
+        description: z.string().optional()
+      });
+      const input = schema.parse(req.body);
+      const role = await storage.createRole(input);
+      res.status(201).json(role);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put("/api/roles/:id", isAuthenticated, async (req, res) => {
+    const schema = z.object({
+      name: z.string().min(1).optional(),
+      description: z.string().optional()
+    });
+    const input = schema.parse(req.body);
+    const role = await storage.updateRole(Number(req.params.id), input);
+    res.json(role);
+  });
+
+  app.delete("/api/roles/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteRole(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  app.put("/api/roles/:id/permissions", isAuthenticated, async (req, res) => {
+    const schema = z.object({
+      permissions: z.array(z.object({
+        moduleId: z.number(),
+        canView: z.boolean(),
+        canCreate: z.boolean(),
+        canEdit: z.boolean(),
+        canDelete: z.boolean()
+      }))
+    });
+    const input = schema.parse(req.body);
+    await storage.setRolePermissions(Number(req.params.id), input.permissions);
+    res.json({ success: true });
+  });
+
+  // === Modules Routes ===
+  app.get("/api/modules", isAuthenticated, async (req, res) => {
+    const modules = await storage.getModules();
+    res.json(modules);
+  });
+
+  app.put("/api/modules/:id/status", isAuthenticated, async (req, res) => {
+    const schema = z.object({ isActive: z.boolean() });
+    const input = schema.parse(req.body);
+    const module = await storage.updateModuleStatus(Number(req.params.id), input.isActive);
+    res.json(module);
+  });
+
+  // === Users Routes ===
+  app.get("/api/users", isAuthenticated, async (req, res) => {
+    const users = await storage.getUsers();
+    res.json(users);
+  });
+
+  app.get("/api/users/:id", isAuthenticated, async (req, res) => {
+    const userId = typeof req.params.id === 'string' ? req.params.id : String(req.params.id);
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  });
+
+  app.put("/api/users/:id/role", isAuthenticated, async (req, res) => {
+    const schema = z.object({ roleId: z.number() });
+    const input = schema.parse(req.body);
+    const userId = typeof req.params.id === 'string' ? req.params.id : String(req.params.id);
+    const user = await storage.updateUserRole(userId, input.roleId);
+    res.json(user);
+  });
+
+  app.put("/api/users/:id/status", isAuthenticated, async (req, res) => {
+    const schema = z.object({ isActive: z.boolean() });
+    const input = schema.parse(req.body);
+    const userId = typeof req.params.id === 'string' ? req.params.id : String(req.params.id);
+    const user = await storage.updateUserStatus(userId, input.isActive);
+    res.json(user);
+  });
+
   return httpServer;
 }

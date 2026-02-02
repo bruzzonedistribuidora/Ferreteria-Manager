@@ -3,6 +3,7 @@ import { eq, desc, sql, sum, count, and, inArray } from "drizzle-orm";
 import { 
   products, categories, clients, sales, saleItems,
   deliveryNotes, deliveryNoteItems, preInvoices, preInvoiceDeliveryNotes,
+  roles, modules, roleModulePermissions, users,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -10,7 +11,9 @@ import {
   type DashboardStats, type SaleWithDetails,
   type DeliveryNote, type DeliveryNoteWithDetails, type CreateDeliveryNoteRequest,
   type PreInvoice, type PreInvoiceWithDetails, type CreatePreInvoiceRequest,
-  type ClientWithPendingNotes
+  type ClientWithPendingNotes,
+  type Role, type InsertRole, type Module, type InsertModule,
+  type RoleModulePermission, type User, type UserWithRole, type RoleWithPermissions
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -52,6 +55,30 @@ export interface IStorage {
   getPreInvoices(): Promise<PreInvoiceWithDetails[]>;
   getPreInvoice(id: number): Promise<PreInvoiceWithDetails | undefined>;
   updatePreInvoiceStatus(id: number, status: string, adminNotes?: string, reviewedBy?: string): Promise<PreInvoice>;
+
+  // Roles
+  getRoles(): Promise<Role[]>;
+  getRole(id: number): Promise<RoleWithPermissions | undefined>;
+  createRole(role: InsertRole): Promise<Role>;
+  updateRole(id: number, updates: Partial<InsertRole>): Promise<Role>;
+  deleteRole(id: number): Promise<void>;
+
+  // Modules
+  getModules(): Promise<Module[]>;
+  createModule(module: InsertModule): Promise<Module>;
+  updateModuleStatus(id: number, isActive: boolean): Promise<Module>;
+
+  // Role Permissions
+  setRolePermissions(roleId: number, permissions: { moduleId: number; canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }[]): Promise<void>;
+
+  // Users
+  getUsers(): Promise<UserWithRole[]>;
+  getUser(id: string): Promise<UserWithRole | undefined>;
+  updateUserRole(userId: string, roleId: number): Promise<User>;
+  updateUserStatus(userId: string, isActive: boolean): Promise<User>;
+
+  // Initial Setup
+  seedDefaultRolesAndModules(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -487,6 +514,237 @@ export class DatabaseStorage implements IStorage {
       .where(eq(preInvoices.id, id))
       .returning();
     return updated;
+  }
+
+  // === Roles ===
+  async getRoles(): Promise<Role[]> {
+    return await db.select().from(roles).orderBy(roles.name);
+  }
+
+  async getRole(id: number): Promise<RoleWithPermissions | undefined> {
+    const [role] = await db.select().from(roles).where(eq(roles.id, id));
+    if (!role) return undefined;
+
+    const perms = await db.select({
+      id: roleModulePermissions.id,
+      roleId: roleModulePermissions.roleId,
+      moduleId: roleModulePermissions.moduleId,
+      canView: roleModulePermissions.canView,
+      canCreate: roleModulePermissions.canCreate,
+      canEdit: roleModulePermissions.canEdit,
+      canDelete: roleModulePermissions.canDelete,
+      module: modules
+    })
+    .from(roleModulePermissions)
+    .leftJoin(modules, eq(roleModulePermissions.moduleId, modules.id))
+    .where(eq(roleModulePermissions.roleId, id));
+
+    return {
+      ...role,
+      permissions: perms.map(p => ({
+        ...p,
+        module: p.module!
+      }))
+    };
+  }
+
+  async createRole(role: InsertRole): Promise<Role> {
+    const [newRole] = await db.insert(roles).values(role).returning();
+    return newRole;
+  }
+
+  async updateRole(id: number, updates: Partial<InsertRole>): Promise<Role> {
+    const [updated] = await db.update(roles).set(updates).where(eq(roles.id, id)).returning();
+    return updated;
+  }
+
+  async deleteRole(id: number): Promise<void> {
+    await db.delete(roleModulePermissions).where(eq(roleModulePermissions.roleId, id));
+    await db.delete(roles).where(eq(roles.id, id));
+  }
+
+  // === Modules ===
+  async getModules(): Promise<Module[]> {
+    return await db.select().from(modules).orderBy(modules.sortOrder);
+  }
+
+  async createModule(module: InsertModule): Promise<Module> {
+    const [newModule] = await db.insert(modules).values(module).returning();
+    return newModule;
+  }
+
+  async updateModuleStatus(id: number, isActive: boolean): Promise<Module> {
+    const [updated] = await db.update(modules).set({ isActive }).where(eq(modules.id, id)).returning();
+    return updated;
+  }
+
+  // === Role Permissions ===
+  async setRolePermissions(roleId: number, permissions: { moduleId: number; canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }[]): Promise<void> {
+    await db.delete(roleModulePermissions).where(eq(roleModulePermissions.roleId, roleId));
+    
+    if (permissions.length > 0) {
+      await db.insert(roleModulePermissions).values(
+        permissions.map(p => ({
+          roleId,
+          moduleId: p.moduleId,
+          canView: p.canView,
+          canCreate: p.canCreate,
+          canEdit: p.canEdit,
+          canDelete: p.canDelete
+        }))
+      );
+    }
+  }
+
+  // === Users ===
+  async getUsers(): Promise<UserWithRole[]> {
+    const result = await db.select({
+      id: users.id,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      profileImageUrl: users.profileImageUrl,
+      roleId: users.roleId,
+      isActive: users.isActive,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+      role: roles
+    })
+    .from(users)
+    .leftJoin(roles, eq(users.roleId, roles.id));
+
+    return result.map(r => ({
+      id: r.id,
+      email: r.email,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      profileImageUrl: r.profileImageUrl,
+      roleId: r.roleId,
+      isActive: r.isActive,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      role: r.role
+    }));
+  }
+
+  async getUser(id: string): Promise<UserWithRole | undefined> {
+    const [result] = await db.select({
+      id: users.id,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      profileImageUrl: users.profileImageUrl,
+      roleId: users.roleId,
+      isActive: users.isActive,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+      role: roles
+    })
+    .from(users)
+    .leftJoin(roles, eq(users.roleId, roles.id))
+    .where(eq(users.id, id));
+
+    if (!result) return undefined;
+
+    return {
+      id: result.id,
+      email: result.email,
+      firstName: result.firstName,
+      lastName: result.lastName,
+      profileImageUrl: result.profileImageUrl,
+      roleId: result.roleId,
+      isActive: result.isActive,
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt,
+      role: result.role
+    };
+  }
+
+  async updateUserRole(userId: string, roleId: number): Promise<User> {
+    const [updated] = await db.update(users)
+      .set({ roleId, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async updateUserStatus(userId: string, isActive: boolean): Promise<User> {
+    const [updated] = await db.update(users)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  // === Initial Setup ===
+  async seedDefaultRolesAndModules(): Promise<void> {
+    const existingRoles = await db.select().from(roles);
+    if (existingRoles.length > 0) return;
+
+    const defaultRoles: InsertRole[] = [
+      { name: "Administrador", description: "Acceso total al sistema", isSystem: true },
+      { name: "Vendedor", description: "Acceso a ventas y clientes", isSystem: true },
+      { name: "Cajero", description: "Acceso a caja y cobros", isSystem: true },
+      { name: "Almacén", description: "Acceso a stock y compras", isSystem: true },
+    ];
+
+    const createdRoles = await db.insert(roles).values(defaultRoles).returning();
+
+    const defaultModules: InsertModule[] = [
+      { code: "dashboard", name: "Dashboard", description: "Panel principal", icon: "LayoutDashboard", route: "/", isActive: true },
+      { code: "pos", name: "Punto de Venta", description: "Ventas mostrador", icon: "ShoppingCart", route: "/pos", isActive: true },
+      { code: "ventas", name: "Ventas", description: "Gestión de ventas", icon: "Receipt", route: "/sales", isActive: true },
+      { code: "productos", name: "Productos", description: "Gestión de productos", icon: "Package", route: "/products", isActive: true },
+      { code: "clientes", name: "Clientes", description: "Gestión de clientes", icon: "Users", route: "/clients", isActive: true },
+      { code: "remitos", name: "Remitos", description: "Notas de entrega", icon: "FileText", route: "/remitos", isActive: true },
+      { code: "proveedores", name: "Proveedores", description: "Gestión de proveedores", icon: "Truck", route: "/suppliers", isActive: false },
+      { code: "compras", name: "Compras", description: "Órdenes de compra", icon: "ShoppingBag", route: "/purchases", isActive: false },
+      { code: "cajas", name: "Cajas", description: "Control de caja", icon: "Wallet", route: "/cashboxes", isActive: false },
+      { code: "informes", name: "Informes", description: "Reportes y estadísticas", icon: "BarChart3", route: "/reports", isActive: false },
+      { code: "usuarios", name: "Usuarios", description: "Gestión de usuarios y roles", icon: "UserCog", route: "/users", isActive: true },
+      { code: "configuracion", name: "Configuración", description: "Configuración del sistema", icon: "Settings", route: "/settings", isActive: true },
+    ];
+
+    const createdModules = await db.insert(modules).values(defaultModules).returning();
+
+    const adminRole = createdRoles.find(r => r.name === "Administrador")!;
+    const adminPermissions = createdModules.map(m => ({
+      roleId: adminRole.id,
+      moduleId: m.id,
+      canView: true,
+      canCreate: true,
+      canEdit: true,
+      canDelete: true
+    }));
+    await db.insert(roleModulePermissions).values(adminPermissions);
+
+    const vendedorRole = createdRoles.find(r => r.name === "Vendedor")!;
+    const vendedorModules = ["dashboard", "pos", "ventas", "productos", "clientes", "remitos"];
+    const vendedorPermissions = createdModules
+      .filter(m => vendedorModules.includes(m.code))
+      .map(m => ({
+        roleId: vendedorRole.id,
+        moduleId: m.id,
+        canView: true,
+        canCreate: m.code !== "productos",
+        canEdit: false,
+        canDelete: false
+      }));
+    await db.insert(roleModulePermissions).values(vendedorPermissions);
+
+    const cajeroRole = createdRoles.find(r => r.name === "Cajero")!;
+    const cajeroModules = ["dashboard", "pos", "cajas"];
+    const cajeroPermissions = createdModules
+      .filter(m => cajeroModules.includes(m.code))
+      .map(m => ({
+        roleId: cajeroRole.id,
+        moduleId: m.id,
+        canView: true,
+        canCreate: m.code === "pos",
+        canEdit: false,
+        canDelete: false
+      }));
+    await db.insert(roleModulePermissions).values(cajeroPermissions);
   }
 }
 
