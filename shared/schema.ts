@@ -88,12 +88,96 @@ export const saleItemRelations = relations(saleItems, ({ one }) => ({
   }),
 }));
 
+// === DELIVERY NOTES (REMITOS) ===
+export const deliveryNotes = pgTable("delivery_notes", {
+  id: serial("id").primaryKey(),
+  noteNumber: text("note_number").unique().notNull(), // R-0001, R-0002...
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  userId: text("user_id").references(() => users.id),
+  status: text("status").default("pending"), // pending, invoiced, cancelled
+  notes: text("notes"),
+  deliveryDate: timestamp("delivery_date").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const deliveryNoteItems = pgTable("delivery_note_items", {
+  id: serial("id").primaryKey(),
+  deliveryNoteId: integer("delivery_note_id").notNull().references(() => deliveryNotes.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  quantity: integer("quantity").notNull(),
+  unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
+  subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
+});
+
+// === PRE-INVOICES (PRE-FACTURAS) ===
+export const preInvoices = pgTable("pre_invoices", {
+  id: serial("id").primaryKey(),
+  preInvoiceNumber: text("pre_invoice_number").unique().notNull(), // PF-0001, PF-0002...
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  userId: text("user_id").references(() => users.id),
+  status: text("status").default("pending_review"), // pending_review, approved, rejected, invoiced
+  totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).notNull(),
+  adminNotes: text("admin_notes"), // Notas de administración
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: text("reviewed_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Link table: which delivery notes are included in each pre-invoice
+export const preInvoiceDeliveryNotes = pgTable("pre_invoice_delivery_notes", {
+  id: serial("id").primaryKey(),
+  preInvoiceId: integer("pre_invoice_id").notNull().references(() => preInvoices.id),
+  deliveryNoteId: integer("delivery_note_id").notNull().references(() => deliveryNotes.id),
+});
+
+// === DELIVERY NOTE RELATIONS ===
+export const deliveryNoteRelations = relations(deliveryNotes, ({ one, many }) => ({
+  client: one(clients, {
+    fields: [deliveryNotes.clientId],
+    references: [clients.id],
+  }),
+  items: many(deliveryNoteItems),
+}));
+
+export const deliveryNoteItemRelations = relations(deliveryNoteItems, ({ one }) => ({
+  deliveryNote: one(deliveryNotes, {
+    fields: [deliveryNoteItems.deliveryNoteId],
+    references: [deliveryNotes.id],
+  }),
+  product: one(products, {
+    fields: [deliveryNoteItems.productId],
+    references: [products.id],
+  }),
+}));
+
+export const preInvoiceRelations = relations(preInvoices, ({ one, many }) => ({
+  client: one(clients, {
+    fields: [preInvoices.clientId],
+    references: [clients.id],
+  }),
+  deliveryNotes: many(preInvoiceDeliveryNotes),
+}));
+
+export const preInvoiceDeliveryNoteRelations = relations(preInvoiceDeliveryNotes, ({ one }) => ({
+  preInvoice: one(preInvoices, {
+    fields: [preInvoiceDeliveryNotes.preInvoiceId],
+    references: [preInvoices.id],
+  }),
+  deliveryNote: one(deliveryNotes, {
+    fields: [preInvoiceDeliveryNotes.deliveryNoteId],
+    references: [deliveryNotes.id],
+  }),
+}));
+
 // === ZOD SCHEMAS ===
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true });
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true });
 export const insertSaleSchema = createInsertSchema(sales).omit({ id: true, receiptNumber: true, userId: true, createdAt: true });
 export const insertSaleItemSchema = createInsertSchema(saleItems).omit({ id: true, saleId: true });
+export const insertDeliveryNoteSchema = createInsertSchema(deliveryNotes).omit({ id: true, noteNumber: true, userId: true, createdAt: true });
+export const insertDeliveryNoteItemSchema = createInsertSchema(deliveryNoteItems).omit({ id: true, deliveryNoteId: true });
+export const insertPreInvoiceSchema = createInsertSchema(preInvoices).omit({ id: true, preInvoiceNumber: true, userId: true, createdAt: true, reviewedAt: true, reviewedBy: true });
 
 // === API TYPES ===
 export type Product = typeof products.$inferSelect;
@@ -101,9 +185,15 @@ export type Category = typeof categories.$inferSelect;
 export type Client = typeof clients.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type SaleItem = typeof saleItems.$inferSelect;
+export type DeliveryNote = typeof deliveryNotes.$inferSelect;
+export type DeliveryNoteItem = typeof deliveryNoteItems.$inferSelect;
+export type PreInvoice = typeof preInvoices.$inferSelect;
+export type PreInvoiceDeliveryNote = typeof preInvoiceDeliveryNotes.$inferSelect;
 
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type InsertClient = z.infer<typeof insertClientSchema>;
+export type InsertDeliveryNote = z.infer<typeof insertDeliveryNoteSchema>;
+export type InsertDeliveryNoteItem = z.infer<typeof insertDeliveryNoteItemSchema>;
 
 // Custom Types for Frontend
 export type ProductWithCategory = Product & { category: Category | null };
@@ -129,4 +219,38 @@ export type DashboardStats = {
   lowStockCount: number;
   totalProducts: number;
   recentSales: SaleWithDetails[];
+};
+
+// Delivery Notes Types
+export type DeliveryNoteWithDetails = DeliveryNote & {
+  client: Client;
+  items: (DeliveryNoteItem & { product: Product })[];
+};
+
+export type CreateDeliveryNoteRequest = {
+  clientId: number;
+  notes?: string;
+  deliveryDate?: string;
+  items: {
+    productId: number;
+    quantity: number;
+    unitPrice: number;
+  }[];
+};
+
+// Pre-Invoice Types
+export type PreInvoiceWithDetails = PreInvoice & {
+  client: Client;
+  deliveryNotes: DeliveryNoteWithDetails[];
+};
+
+export type CreatePreInvoiceRequest = {
+  clientId: number;
+  deliveryNoteIds: number[];
+};
+
+// Client with pending delivery notes for grouping
+export type ClientWithPendingNotes = Client & {
+  pendingDeliveryNotes: DeliveryNoteWithDetails[];
+  totalPendingAmount: number;
 };
