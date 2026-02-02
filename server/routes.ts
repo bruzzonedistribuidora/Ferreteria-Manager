@@ -1699,5 +1699,79 @@ export async function registerRoutes(
   // Seed default print settings
   await storage.seedDefaultPrintSettings();
 
+  // === E-COMMERCE SETTINGS ROUTES ===
+  app.get("/api/ecommerce/settings", isAuthenticated, async (req, res) => {
+    const settings = await storage.getEcommerceSettings();
+    res.json(settings || null);
+  });
+
+  app.post("/api/ecommerce/settings", isAuthenticated, async (req, res) => {
+    try {
+      const settings = await storage.saveEcommerceSettings(req.body);
+      res.json(settings);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al guardar configuración" });
+    }
+  });
+
+  // === E-COMMERCE PRODUCTS (Public catalog) ===
+  app.get("/api/ecommerce/products", async (req, res) => {
+    const products = await storage.getEcommerceProducts();
+    res.json(products);
+  });
+
+  // === E-COMMERCE ORDERS ===
+  app.get("/api/ecommerce/orders", isAuthenticated, async (req, res) => {
+    const orders = await storage.getEcommerceOrders();
+    res.json(orders);
+  });
+
+  app.get("/api/ecommerce/orders/:id", isAuthenticated, async (req, res) => {
+    const order = await storage.getEcommerceOrder(Number(req.params.id));
+    if (!order) return res.status(404).json({ message: "Pedido no encontrado" });
+    res.json(order);
+  });
+
+  app.post("/api/ecommerce/orders", async (req, res) => {
+    try {
+      const { items, ...orderData } = req.body;
+      const order = await storage.createEcommerceOrder(orderData, items || []);
+      res.status(201).json(order);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al crear pedido" });
+    }
+  });
+
+  app.patch("/api/ecommerce/orders/:id", isAuthenticated, async (req, res) => {
+    try {
+      const order = await storage.updateEcommerceOrder(Number(req.params.id), req.body);
+      res.json(order);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al actualizar pedido" });
+    }
+  });
+
+  app.post("/api/ecommerce/orders/:id/confirm", isAuthenticated, async (req, res) => {
+    try {
+      const order = await storage.updateEcommerceOrder(Number(req.params.id), {
+        orderStatus: "confirmed"
+      });
+      res.json(order);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al confirmar" });
+    }
+  });
+
+  app.post("/api/ecommerce/orders/:id/cancel", isAuthenticated, async (req, res) => {
+    try {
+      const order = await storage.updateEcommerceOrder(Number(req.params.id), {
+        orderStatus: "cancelled"
+      });
+      res.json(order);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al cancelar" });
+    }
+  });
+
   return httpServer;
 }

@@ -21,10 +21,11 @@ import Stock from "@/pages/Stock";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 import { 
-  Quotes, Orders, Loyalty, Ecommerce, StockAlerts, StockAdjustment, 
+  Quotes, Orders, Loyalty, StockAlerts, StockAdjustment, 
   BulkEdit, PurchaseOrders, PriceLists,
   Purchases, Balances, Installments, Finance, Reports, Integrations 
 } from "@/pages/ComingSoon";
+import Ecommerce from "@/pages/Ecommerce";
 import ImportData from "@/pages/ImportData";
 import Settings from "@/pages/Settings";
 import BrandsCategories from "@/pages/BrandsCategories";
