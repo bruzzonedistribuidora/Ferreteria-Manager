@@ -343,6 +343,13 @@ export async function registerRoutes(
     res.json(sale);
   });
 
+  app.post("/api/sales/:id/convert-to-remito", isAuthenticated, async (req, res) => {
+    const user = req.user as any;
+    const remito = await storage.convertSaleToRemito(Number(req.params.id), user.claims.sub);
+    if (!remito) return res.status(404).json({ message: "Sale not found" });
+    res.status(201).json(remito);
+  });
+
   // === Stats Routes ===
   app.get(api.stats.dashboard.path, isAuthenticated, async (req, res) => {
     const stats = await storage.getDashboardStats();

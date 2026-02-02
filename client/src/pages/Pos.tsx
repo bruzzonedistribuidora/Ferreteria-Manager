@@ -3,7 +3,7 @@ import { useProducts } from "@/hooks/use-products";
 import { useClients } from "@/hooks/use-clients";
 import { useCreateSale } from "@/hooks/use-sales";
 import { useState, useMemo } from "react";
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, User, Check, Loader2, Banknote, ArrowRightLeft } from "lucide-react";
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, User, Check, Loader2, Banknote, ArrowRightLeft, FileText, Receipt, Percent } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,6 +40,8 @@ export default function Pos() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("walk-in");
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
+  const [documentType, setDocumentType] = useState<string>("ingreso");
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   const { data: products, isLoading: loadingProducts } = useProducts();
@@ -111,12 +113,24 @@ export default function Pos() {
     setCart(prev => prev.filter(item => item.productId !== productId));
   };
 
-  const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const discountAmount = subtotal * (discountPercent / 100);
+  const total = subtotal - discountAmount;
+
+  const DOC_TYPES: Record<string, string> = {
+    ingreso: "Ingreso Simple",
+    factura_a: "Factura A",
+    factura_b: "Factura B", 
+    factura_c: "Factura C",
+    presupuesto: "Presupuesto"
+  };
 
   const handleCheckout = () => {
     createSale({
       clientId: selectedClientId === "walk-in" ? undefined : Number(selectedClientId),
+      documentType,
       paymentMethod,
+      discountPercent,
       items: cart.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -124,13 +138,16 @@ export default function Pos() {
       }))
     }, {
       onSuccess: () => {
+        const docName = DOC_TYPES[documentType] || "Ticket";
         toast({
-          title: "Venta Completada",
-          description: `Ticket generado exitosamente.`,
+          title: documentType === "presupuesto" ? "Presupuesto Generado" : "Venta Completada",
+          description: `${docName} generado exitosamente.`,
         });
         setCart([]);
         setIsCheckoutOpen(false);
         setPaymentMethod("cash");
+        setDocumentType("ingreso");
+        setDiscountPercent(0);
         setSelectedClientId("walk-in");
       },
       onError: (err) => {
@@ -290,11 +307,33 @@ export default function Pos() {
                   Cobrar
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Confirmar Pago</DialogTitle>
+                  <DialogTitle>Confirmar Venta</DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-slate-700">Tipo de Documento</label>
+                    <Select value={documentType} onValueChange={setDocumentType}>
+                      <SelectTrigger className="bg-white" data-testid="select-document-type">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-slate-400" />
+                          <SelectValue />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ingreso">Ingreso Simple</SelectItem>
+                        <SelectItem value="factura_a">Factura A</SelectItem>
+                        <SelectItem value="factura_b">Factura B</SelectItem>
+                        <SelectItem value="factura_c">Factura C</SelectItem>
+                        <SelectItem value="presupuesto">Presupuesto</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {documentType.startsWith("factura_") && (
+                      <p className="text-xs text-orange-600">Las facturas requieren validación ARCA posterior</p>
+                    )}
+                  </div>
+
                   <div className="flex flex-col gap-2">
                     <label className="text-sm font-medium text-slate-700">Método de Pago</label>
                     <div className="grid grid-cols-3 gap-3">
@@ -306,6 +345,7 @@ export default function Pos() {
                         <div 
                           key={method.key}
                           onClick={() => setPaymentMethod(method.key)}
+                          data-testid={`payment-method-${method.key}`}
                           className={`
                             cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-2 transition-all
                             ${paymentMethod === method.key 
@@ -319,10 +359,39 @@ export default function Pos() {
                       ))}
                     </div>
                   </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <Percent className="h-4 w-4" />
+                      Descuento (%)
+                    </label>
+                    <Input 
+                      type="number" 
+                      min="0" 
+                      max="100" 
+                      step="0.5"
+                      value={discountPercent}
+                      onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                      className="w-32"
+                      data-testid="input-discount-percent"
+                    />
+                  </div>
                   
-                  <div className="bg-slate-100 p-4 rounded-xl flex justify-between items-center mt-2">
-                    <span className="font-medium text-slate-600">Total a Cobrar</span>
-                    <span className="text-2xl font-bold text-slate-900">${total.toFixed(2)}</span>
+                  <div className="bg-slate-100 p-4 rounded-xl space-y-2 mt-2">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-slate-500">Subtotal</span>
+                      <span className="text-slate-700">${subtotal.toFixed(2)}</span>
+                    </div>
+                    {discountPercent > 0 && (
+                      <div className="flex justify-between items-center text-sm text-green-600">
+                        <span>Descuento ({discountPercent}%)</span>
+                        <span>-${discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                      <span className="font-medium text-slate-600">Total a Cobrar</span>
+                      <span className="text-2xl font-bold text-slate-900">${total.toFixed(2)}</span>
+                    </div>
                   </div>
                 </div>
                 <DialogFooter>
@@ -331,9 +400,10 @@ export default function Pos() {
                     onClick={handleCheckout} 
                     disabled={isProcessing}
                     className="bg-orange-600 hover:bg-orange-700 min-w-[120px]"
+                    data-testid="button-confirm-sale"
                   >
                     {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                    Confirmar Venta
+                    {documentType === "presupuesto" ? "Generar Presupuesto" : "Confirmar Venta"}
                   </Button>
                 </DialogFooter>
               </DialogContent>

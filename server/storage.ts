@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { eq, desc, sql, sum, count, and, inArray, or, ilike } from "drizzle-orm";
 import { 
-  products, categories, clients, sales, saleItems,
+  products, categories, clients, sales, saleItems, salePayments,
   deliveryNotes, deliveryNoteItems, preInvoices, preInvoiceDeliveryNotes,
   roles, modules, roleModulePermissions, users,
   clientAuthorizedContacts, clientAccountMovements,
@@ -61,6 +61,7 @@ export interface IStorage {
   createSale(userId: string, request: CreateSaleRequest): Promise<Sale>;
   getSales(): Promise<SaleWithDetails[]>;
   getSale(id: number): Promise<SaleWithDetails | undefined>;
+  convertSaleToRemito(saleId: number, userId: string): Promise<DeliveryNote | undefined>;
 
   // Stats
   getDashboardStats(): Promise<DashboardStats>;
@@ -336,51 +337,99 @@ export class DatabaseStorage implements IStorage {
 
   // === Sales ===
   async createSale(userId: string, request: CreateSaleRequest): Promise<Sale> {
-    // Transaction logic would be ideal here, but simpler approach for MVP
-    
-    // Calculate total
-    let totalAmount = 0;
+    // Calculate subtotal
+    let subtotal = 0;
     for (const item of request.items) {
-      totalAmount += item.quantity * item.unitPrice;
+      subtotal += item.quantity * item.unitPrice;
     }
 
+    // Apply discount
+    const discountPercent = request.discountPercent || 0;
+    const discountAmount = subtotal * (discountPercent / 100);
+    const totalAmount = subtotal - discountAmount;
+
+    // Determine document prefix based on type
+    const docType = request.documentType || "ingreso";
+    const prefixes: Record<string, string> = {
+      factura_a: "FA",
+      factura_b: "FB", 
+      factura_c: "FC",
+      ingreso: "ING",
+      presupuesto: "PRES"
+    };
+    const prefix = prefixes[docType] || "REC";
+    const receiptNumber = `${prefix}-${nanoid(8).toUpperCase()}`;
+
+    // Determine fiscal status
+    const fiscalStatus = docType.startsWith("factura_") ? "pending" : "not_applicable";
+
     // Create Sale Header
-    const receiptNumber = `REC-${nanoid(8).toUpperCase()}`;
     const [sale] = await db.insert(sales).values({
       receiptNumber,
+      documentType: docType,
       clientId: request.clientId,
       userId,
+      subtotal: subtotal.toString(),
+      discountPercent: discountPercent.toString(),
+      discountAmount: discountAmount.toString(),
       totalAmount: totalAmount.toString(),
       paymentMethod: request.paymentMethod,
-      status: "completed"
+      fiscalStatus,
+      status: docType === "presupuesto" ? "pending" : "completed",
+      notes: request.notes
     }).returning();
 
     // Create Sale Items and Update Stock
     for (const item of request.items) {
-      const subtotal = item.quantity * item.unitPrice;
+      const itemSubtotal = item.quantity * item.unitPrice;
       
       await db.insert(saleItems).values({
         saleId: sale.id,
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: item.unitPrice.toString(),
-        subtotal: subtotal.toString()
+        subtotal: itemSubtotal.toString()
       });
 
-      // Update Stock
-      const product = await this.getProduct(item.productId);
-      if (product) {
-        await this.updateProduct(item.productId, {
-          stockQuantity: product.stockQuantity - item.quantity
+      // Update Stock only for non-presupuesto
+      if (docType !== "presupuesto") {
+        const product = await this.getProduct(item.productId);
+        if (product) {
+          await this.updateProduct(item.productId, {
+            stockQuantity: product.stockQuantity - item.quantity
+          });
+        }
+      }
+    }
+
+    // Create payment records for mixed payments
+    if (request.payments && request.payments.length > 0) {
+      for (const payment of request.payments) {
+        await db.insert(salePayments).values({
+          saleId: sale.id,
+          paymentMethod: payment.paymentMethod,
+          amount: payment.amount.toString(),
+          cardType: payment.cardType,
+          cardLastDigits: payment.cardLastDigits,
+          installments: payment.installments || 1,
+          surchargePercent: (payment.surchargePercent || 0).toString(),
+          referenceNumber: payment.referenceNumber,
+          notes: payment.notes
         });
       }
+    } else {
+      // Single payment - create one payment record
+      await db.insert(salePayments).values({
+        saleId: sale.id,
+        paymentMethod: request.paymentMethod,
+        amount: totalAmount.toString()
+      });
     }
 
     return sale;
   }
 
   async getSales(): Promise<SaleWithDetails[]> {
-    // Use Drizzle relations for cleaner fetching if setup, but simple query join works too
     const allSales = await db.query.sales.findMany({
       with: {
         client: true,
@@ -388,7 +437,8 @@ export class DatabaseStorage implements IStorage {
           with: {
             product: true
           }
-        }
+        },
+        payments: true
       },
       orderBy: [desc(sales.createdAt)]
     });
@@ -404,10 +454,35 @@ export class DatabaseStorage implements IStorage {
           with: {
             product: true
           }
-        }
+        },
+        payments: true
       }
     });
     return sale;
+  }
+
+  async convertSaleToRemito(saleId: number, userId: string): Promise<DeliveryNote | undefined> {
+    const sale = await this.getSale(saleId);
+    if (!sale) return undefined;
+    
+    const items = sale.items.map(item => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      unitPrice: Number(item.unitPrice)
+    }));
+    
+    const remito = await this.createDeliveryNote(userId, {
+      clientId: sale.clientId!,
+      items,
+      notes: `Convertido desde venta ${sale.receiptNumber}`
+    });
+    
+    // Mark original sale as converted
+    await db.update(sales)
+      .set({ status: "converted", notes: `Convertido a remito ${remito.noteNumber}` })
+      .where(eq(sales.id, saleId));
+    
+    return remito;
   }
 
   // === Stats ===

@@ -129,11 +129,24 @@ export const api = {
       path: '/api/sales',
       input: z.object({
         clientId: z.number().optional(),
+        documentType: z.string().optional(), // ingreso, factura_a, factura_b, factura_c, presupuesto
         paymentMethod: z.string(),
+        discountPercent: z.number().optional(),
+        notes: z.string().optional(),
+        payments: z.array(z.object({
+          paymentMethod: z.string(),
+          amount: z.number(),
+          cardType: z.string().optional(),
+          cardLastDigits: z.string().optional(),
+          installments: z.number().optional(),
+          surchargePercent: z.number().optional(),
+          referenceNumber: z.string().optional(),
+          notes: z.string().optional(),
+        })).optional(),
         items: z.array(z.object({
           productId: z.number(),
           quantity: z.number(),
-          unitPrice: z.number(), // Explicitly passed price to allow overrides/discounts
+          unitPrice: z.number(),
         })),
       }),
       responses: {
