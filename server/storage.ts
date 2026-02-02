@@ -307,6 +307,15 @@ export class DatabaseStorage implements IStorage {
     return category;
   }
 
+  async updateCategory(id: number, updates: { name?: string; description?: string }): Promise<Category> {
+    const [updated] = await db.update(categories).set(updates).where(eq(categories.id, id)).returning();
+    return updated;
+  }
+
+  async deleteCategory(id: number): Promise<void> {
+    await db.delete(categories).where(eq(categories.id, id));
+  }
+
   // === Clients ===
   async getClients(search?: string): Promise<Client[]> {
     let query = db.select().from(clients);

@@ -46,8 +46,6 @@ export const StockAdjustment = () => <ComingSoon title="Ajuste de Stock" descrip
 export const BulkEdit = () => <ComingSoon title="Modificación Masiva" description="Edita múltiples productos a la vez." />;
 export const PurchaseOrders = () => <ComingSoon title="Pedidos de Compra" description="Genera órdenes de compra para tus proveedores." />;
 export const PriceLists = () => <ComingSoon title="Lista de Precios" description="Gestiona listas de precios por cliente o categoría." />;
-export const ImportData = () => <ComingSoon title="Importar Datos" description="Importa productos y datos desde archivos Excel o CSV." />;
-export const BrandsCategories = () => <ComingSoon title="Marcas & Rubros" description="Administra marcas y categorías de productos." />;
 export const Purchases = () => <ComingSoon title="Compras & IA" description="Gestión de compras con asistencia de inteligencia artificial." />;
 export const Balances = () => <ComingSoon title="Saldos y Deudas" description="Cuentas corrientes de clientes y proveedores." />;
 export const Installments = () => <ComingSoon title="Cuotas Internas" description="Gestión de financiación propia." />;

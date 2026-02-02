@@ -146,6 +146,16 @@ export async function registerRoutes(
     res.status(201).json(category);
   });
 
+  app.put("/api/categories/:id", isAuthenticated, async (req, res) => {
+    const category = await storage.updateCategory(Number(req.params.id), req.body);
+    res.json(category);
+  });
+
+  app.delete("/api/categories/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteCategory(Number(req.params.id));
+    res.status(204).send();
+  });
+
   // === Clients Routes ===
   app.get(api.clients.list.path, isAuthenticated, async (req, res) => {
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
@@ -1332,6 +1342,11 @@ export async function registerRoutes(
   });
 
   app.patch("/api/brands/:id", isAuthenticated, async (req, res) => {
+    const brand = await storage.updateBrand(Number(req.params.id), req.body);
+    res.json(brand);
+  });
+
+  app.put("/api/brands/:id", isAuthenticated, async (req, res) => {
     const brand = await storage.updateBrand(Number(req.params.id), req.body);
     res.json(brand);
   });
