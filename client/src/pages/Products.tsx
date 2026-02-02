@@ -402,6 +402,20 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                   />
                 </div>
 
+                <FormField
+                  control={form.control}
+                  name="barcode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Código de Barras</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ej: 7790001234567" {...field} value={field.value ?? ""} data-testid="input-barcode" />
+                      </FormControl>
+                      <FormDescription className="text-xs">Escanee o ingrese el código de barras EAN/UPC</FormDescription>
+                    </FormItem>
+                  )}
+                />
+
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -606,7 +620,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                     <FormItem>
                       <FormLabel>Costo de lista (s/IVA):</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value)} data-testid="input-list-cost" />
+                        <Input type="number" step="0.01" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value)} data-testid="input-list-cost" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -627,7 +641,8 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                             <Input 
                               type="number" 
                               min="1" 
-                              {...field} 
+                              {...field}
+                              value={field.value ?? 1}
                               onChange={e => field.onChange(parseInt(e.target.value) || 1)} 
                               data-testid="input-bulk-quantity"
                             />
@@ -648,7 +663,8 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                             <Input 
                               type="number" 
                               step="0.01" 
-                              {...field} 
+                              {...field}
+                              value={field.value ?? ""}
                               readOnly 
                               className="bg-green-100 font-bold text-green-800"
                             />
@@ -674,7 +690,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                       <FormItem>
                         <FormLabel>Costo (s/IVA):</FormLabel>
                         <FormControl>
-                          <Input type="number" step="0.01" {...field} readOnly className="bg-gray-50" />
+                          <Input type="number" step="0.01" {...field} value={field.value ?? ""} readOnly className="bg-gray-50" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -697,7 +713,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                       <FormItem>
                         <FormLabel>Costo (c/IVA):</FormLabel>
                         <FormControl>
-                          <Input type="number" step="0.01" {...field} readOnly className="bg-gray-50" />
+                          <Input type="number" step="0.01" {...field} value={field.value ?? ""} readOnly className="bg-gray-50" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -722,7 +738,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                         <FormItem>
                           <FormLabel className="text-xs">Desc. 1 (%)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value)} />
+                            <Input type="number" step="0.01" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value)} />
                           </FormControl>
                         </FormItem>
                       )}
@@ -734,7 +750,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                         <FormItem>
                           <FormLabel className="text-xs">Desc. 2 (%)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value)} />
+                            <Input type="number" step="0.01" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value)} />
                           </FormControl>
                         </FormItem>
                       )}
@@ -746,7 +762,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                         <FormItem>
                           <FormLabel className="text-xs">Desc. 3 (%)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value)} />
+                            <Input type="number" step="0.01" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value)} />
                           </FormControl>
                         </FormItem>
                       )}
@@ -758,7 +774,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                         <FormItem>
                           <FormLabel className="text-xs">Desc. 4 (%)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value)} />
+                            <Input type="number" step="0.01" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value)} />
                           </FormControl>
                         </FormItem>
                       )}
@@ -790,7 +806,8 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                           <Input 
                             type="number" 
                             step="0.01" 
-                            {...field} 
+                            {...field}
+                            value={field.value ?? ""} 
                             onChange={e => field.onChange(e.target.value)}
                             className="max-w-[150px]"
                             data-testid="input-profit-percent"
@@ -807,7 +824,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                         <FormItem>
                           <FormLabel>Precio (s/IVA):</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.01" {...field} readOnly className="bg-gray-50" />
+                            <Input type="number" step="0.01" {...field} value={field.value ?? ""} readOnly className="bg-gray-50" />
                           </FormControl>
                         </FormItem>
                       )}
@@ -832,7 +849,8 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                             <Input 
                               type="number" 
                               step="0.01" 
-                              {...field} 
+                              {...field}
+                              value={field.value ?? ""} 
                               readOnly 
                               className="bg-blue-100 font-bold text-blue-800"
                               data-testid="input-price-with-tax"

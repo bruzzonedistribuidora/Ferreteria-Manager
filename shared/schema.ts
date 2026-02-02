@@ -45,6 +45,7 @@ export const products = pgTable("products", {
   additionalCode2: text("additional_code_2"),
   additionalCode3: text("additional_code_3"),
   additionalCode4: text("additional_code_4"),
+  barcode: text("barcode"), // Código de barras
   categoryId: integer("category_id").references(() => categories.id),
   brandId: integer("brand_id").references(() => brands.id),
   supplierId: integer("supplier_id"), // Proveedor principal (FK added via relations)

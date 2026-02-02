@@ -20,6 +20,11 @@ import CashRegisters from "@/pages/CashRegisters";
 import Stock from "@/pages/Stock";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
+import { 
+  Quotes, Orders, Loyalty, Ecommerce, StockAlerts, StockAdjustment, 
+  BulkEdit, PurchaseOrders, PriceLists, ImportData, BrandsCategories,
+  Purchases, Balances, Installments, Finance, Reports, SettingsPage, Integrations 
+} from "@/pages/ComingSoon";
 
 function PrivateRoute({ component: Component, ...rest }: any) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -71,17 +76,47 @@ function Router() {
   // Authenticated Routes
   return (
     <Switch>
+      {/* PRINCIPAL */}
       <Route path="/" component={Dashboard} />
+      
+      {/* COMERCIAL */}
       <Route path="/pos" component={Pos} />
-      <Route path="/products" component={Products} />
-      <Route path="/stock" component={Stock} />
-      <Route path="/clients" component={Clients} />
-      <Route path="/sales" component={SalesHistory} />
       <Route path="/remitos" component={Remitos} />
+      <Route path="/quotes" component={Quotes} />
+      <Route path="/orders" component={Orders} />
+      <Route path="/clients" component={Clients} />
+      <Route path="/loyalty" component={Loyalty} />
+      <Route path="/ecommerce" component={Ecommerce} />
+      
+      {/* PRODUCTOS & ABASTECIMIENTO */}
+      <Route path="/products" component={Products} />
+      <Route path="/stock-alerts" component={StockAlerts} />
+      <Route path="/stock-adjustment" component={StockAdjustment} />
+      <Route path="/bulk-edit" component={BulkEdit} />
+      <Route path="/stock" component={Stock} />
+      <Route path="/purchase-orders" component={PurchaseOrders} />
       <Route path="/suppliers" component={Suppliers} />
-      <Route path="/payment-methods" component={PaymentMethods} />
+      <Route path="/price-lists" component={PriceLists} />
+      <Route path="/import" component={ImportData} />
+      <Route path="/brands-categories" component={BrandsCategories} />
+      
+      {/* ADMINISTRACIÓN & FINANZAS */}
       <Route path="/cash-registers" component={CashRegisters} />
+      <Route path="/purchases" component={Purchases} />
+      <Route path="/balances" component={Balances} />
+      <Route path="/installments" component={Installments} />
+      <Route path="/finance" component={Finance} />
+      <Route path="/reports" component={Reports} />
       <Route path="/users" component={Users} />
+      
+      {/* CONFIGURACIÓN */}
+      <Route path="/settings" component={SettingsPage} />
+      <Route path="/integrations" component={Integrations} />
+      
+      {/* Legacy routes */}
+      <Route path="/sales" component={SalesHistory} />
+      <Route path="/payment-methods" component={PaymentMethods} />
+      
       <Route component={NotFound} />
     </Switch>
   );
