@@ -27,11 +27,12 @@ export default function Store() {
     queryKey: ["/api/categories"],
   });
 
-  const featuredProducts = products.filter(p => p.isFeatured);
-  const saleProducts = products.filter(p => p.isOnSale);
-  const newProducts = products.filter(p => p.isNewArrival);
+  const publishedProducts = products.filter(p => p.publishOnline);
+  const featuredProducts = publishedProducts.filter(p => p.isFeatured);
+  const saleProducts = publishedProducts.filter(p => p.isOnSale);
+  const newProducts = publishedProducts.filter(p => p.isNewArrival);
 
-  const filteredProducts = products.filter(p => {
+  const filteredProducts = publishedProducts.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.sku.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = !selectedCategory || p.categoryId === selectedCategory;
@@ -82,13 +83,13 @@ export default function Store() {
   }
 
   const ProductCard = ({ product }: { product: Product }) => (
-    <Card className="group overflow-hidden hover:shadow-lg transition-shadow" data-testid={`product-card-${product.id}`}>
-      <div className="relative aspect-square bg-slate-100 overflow-hidden">
+    <Card className="group overflow-visible" data-testid={`product-card-${product.id}`}>
+      <div className="relative aspect-square bg-slate-100 dark:bg-slate-800 overflow-hidden">
         {product.imageUrl ? (
           <img 
             src={product.imageUrl} 
             alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+            className="w-full h-full object-cover"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -97,19 +98,19 @@ export default function Store() {
         )}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
           {product.isOnSale && (
-            <Badge className="bg-red-500 text-white">
+            <Badge variant="destructive" data-testid={`badge-sale-${product.id}`}>
               <Tag className="h-3 w-3 mr-1" />
               Oferta
             </Badge>
           )}
           {product.isFeatured && (
-            <Badge className="bg-yellow-500 text-white">
+            <Badge data-testid={`badge-featured-${product.id}`}>
               <Star className="h-3 w-3 mr-1" />
               Destacado
             </Badge>
           )}
           {product.isNewArrival && (
-            <Badge className="bg-green-500 text-white">
+            <Badge variant="secondary" data-testid={`badge-new-${product.id}`}>
               <Sparkles className="h-3 w-3 mr-1" />
               Nuevo
             </Badge>
@@ -118,7 +119,8 @@ export default function Store() {
         <Button 
           size="icon" 
           variant="ghost" 
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80"
+          className="absolute top-2 right-2"
+          data-testid={`button-favorite-${product.id}`}
         >
           <Heart className="h-4 w-4" />
         </Button>

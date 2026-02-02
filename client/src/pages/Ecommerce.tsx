@@ -279,9 +279,9 @@ export default function Ecommerce() {
                             <p className="font-medium">{product.name}</p>
                             <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>
                           </div>
-                          {product.isFeatured && <Badge className="bg-yellow-500">Destacado</Badge>}
-                          {product.isOnSale && <Badge className="bg-red-500">Oferta</Badge>}
-                          {product.isNewArrival && <Badge className="bg-green-500">Nuevo</Badge>}
+                          {product.isFeatured && <Badge data-testid={`badge-featured-${product.id}`}>Destacado</Badge>}
+                          {product.isOnSale && <Badge variant="destructive" data-testid={`badge-sale-${product.id}`}>Oferta</Badge>}
+                          {product.isNewArrival && <Badge variant="secondary" data-testid={`badge-new-${product.id}`}>Nuevo</Badge>}
                         </div>
                       </TableCell>
                       <TableCell>${Number(product.priceWithTax || product.price).toLocaleString()}</TableCell>
@@ -289,10 +289,11 @@ export default function Ecommerce() {
                         {product.isOnSale ? (
                           <Input
                             type="number"
-                            className="w-24 h-8"
+                            className="w-24"
                             value={product.salePrice || ""}
                             placeholder="Precio"
-                            onChange={(e) => updateProductMutation.mutate({
+                            data-testid={`input-sale-price-${product.id}`}
+                            onBlur={(e) => updateProductMutation.mutate({
                               id: product.id,
                               data: { salePrice: e.target.value }
                             })}
