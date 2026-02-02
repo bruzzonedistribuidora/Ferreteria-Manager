@@ -171,6 +171,96 @@ export const api = {
       },
     },
   },
+  deliveryNotes: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/delivery-notes',
+      responses: {
+        200: z.array(z.any()),
+      },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/delivery-notes/:id',
+      responses: {
+        200: z.any(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/delivery-notes',
+      input: z.object({
+        clientId: z.number(),
+        notes: z.string().optional(),
+        deliveryDate: z.string().optional(),
+        items: z.array(z.object({
+          productId: z.number(),
+          quantity: z.number(),
+          unitPrice: z.number(),
+        })),
+      }),
+      responses: {
+        201: z.any(),
+      },
+    },
+    pendingByClient: {
+      method: 'GET' as const,
+      path: '/api/delivery-notes/pending-by-client',
+      responses: {
+        200: z.array(z.any()),
+      },
+    },
+    updateStatus: {
+      method: 'PATCH' as const,
+      path: '/api/delivery-notes/:id/status',
+      input: z.object({
+        status: z.string(),
+      }),
+      responses: {
+        200: z.any(),
+      },
+    },
+  },
+  preInvoices: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/pre-invoices',
+      responses: {
+        200: z.array(z.any()),
+      },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/pre-invoices/:id',
+      responses: {
+        200: z.any(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/pre-invoices',
+      input: z.object({
+        clientId: z.number(),
+        deliveryNoteIds: z.array(z.number()),
+      }),
+      responses: {
+        201: z.any(),
+      },
+    },
+    updateStatus: {
+      method: 'PATCH' as const,
+      path: '/api/pre-invoices/:id/status',
+      input: z.object({
+        status: z.string(),
+        adminNotes: z.string().optional(),
+      }),
+      responses: {
+        200: z.any(),
+      },
+    },
+  },
 };
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {

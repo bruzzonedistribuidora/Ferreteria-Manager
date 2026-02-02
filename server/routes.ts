@@ -115,6 +115,83 @@ export async function registerRoutes(
     res.json(stats);
   });
 
+  // === Delivery Notes (Remitos) Routes ===
+  // IMPORTANT: specific routes before parameterized routes
+  app.get(api.deliveryNotes.pendingByClient.path, isAuthenticated, async (req, res) => {
+    const pending = await storage.getPendingDeliveryNotesByClient();
+    res.json(pending);
+  });
+
+  app.get(api.deliveryNotes.list.path, isAuthenticated, async (req, res) => {
+    const clientId = req.query.clientId ? Number(req.query.clientId) : undefined;
+    const notes = await storage.getDeliveryNotes(clientId);
+    res.json(notes);
+  });
+
+  app.get(api.deliveryNotes.get.path, isAuthenticated, async (req, res) => {
+    const note = await storage.getDeliveryNote(Number(req.params.id));
+    if (!note) return res.status(404).json({ message: "Remito no encontrado" });
+    res.json(note);
+  });
+
+  app.post(api.deliveryNotes.create.path, isAuthenticated, async (req, res) => {
+    try {
+      const input = api.deliveryNotes.create.input.parse(req.body);
+      const user = req.user as any;
+      const note = await storage.createDeliveryNote(user.claims.sub, input);
+      res.status(201).json(note);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.patch(api.deliveryNotes.updateStatus.path, isAuthenticated, async (req, res) => {
+    const { status } = api.deliveryNotes.updateStatus.input.parse(req.body);
+    const note = await storage.updateDeliveryNoteStatus(Number(req.params.id), status);
+    res.json(note);
+  });
+
+  // === Pre-Invoices (Pre-Facturas) Routes ===
+  app.get(api.preInvoices.list.path, isAuthenticated, async (req, res) => {
+    const preInvoices = await storage.getPreInvoices();
+    res.json(preInvoices);
+  });
+
+  app.get(api.preInvoices.get.path, isAuthenticated, async (req, res) => {
+    const preInvoice = await storage.getPreInvoice(Number(req.params.id));
+    if (!preInvoice) return res.status(404).json({ message: "Pre-Factura no encontrada" });
+    res.json(preInvoice);
+  });
+
+  app.post(api.preInvoices.create.path, isAuthenticated, async (req, res) => {
+    try {
+      const input = api.preInvoices.create.input.parse(req.body);
+      const user = req.user as any;
+      const preInvoice = await storage.createPreInvoice(user.claims.sub, input);
+      res.status(201).json(preInvoice);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.patch(api.preInvoices.updateStatus.path, isAuthenticated, async (req, res) => {
+    const { status, adminNotes } = api.preInvoices.updateStatus.input.parse(req.body);
+    const user = req.user as any;
+    const preInvoice = await storage.updatePreInvoiceStatus(
+      Number(req.params.id), 
+      status, 
+      adminNotes,
+      user.claims.sub
+    );
+    res.json(preInvoice);
+  });
+
   // === SEED DATA ===
   // Simple seed check
   const cats = await storage.getCategories();
