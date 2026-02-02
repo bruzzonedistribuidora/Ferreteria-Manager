@@ -9,7 +9,7 @@ import {
   paymentMethods, cardConfigurations, cardInstallmentPlans, bankAccounts,
   cashRegisters, cashRegisterSessions, cashMovements, checksWallet,
   stockLocations, stockMovements, brands, warehouses, productWarehouseStock,
-  supplierImportTemplates, priceUpdateLogs,
+  supplierImportTemplates, priceUpdateLogs, companySettings, printSettings,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -40,7 +40,9 @@ import {
   type Warehouse, type InsertWarehouse,
   type ProductWarehouseStock, type InsertProductWarehouseStock,
   type SupplierImportTemplate, type InsertSupplierImportTemplate,
-  type PriceUpdateLog, type InsertPriceUpdateLog
+  type PriceUpdateLog, type InsertPriceUpdateLog,
+  type CompanySettings, type InsertCompanySettings,
+  type PrintSettings, type InsertPrintSettings
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -2251,6 +2253,87 @@ export class DatabaseStorage implements IStorage {
         eq(products.isActive, true)
       ));
     return product;
+  }
+
+  // === COMPANY SETTINGS ===
+  async getCompanySettings(): Promise<CompanySettings | undefined> {
+    const [settings] = await db.select().from(companySettings).limit(1);
+    return settings;
+  }
+
+  async saveCompanySettings(settings: InsertCompanySettings): Promise<CompanySettings> {
+    const existing = await this.getCompanySettings();
+    if (existing) {
+      const [updated] = await db.update(companySettings)
+        .set({ ...settings, updatedAt: new Date() })
+        .where(eq(companySettings.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(companySettings).values(settings).returning();
+      return created;
+    }
+  }
+
+  // === PRINT SETTINGS ===
+  async getPrintSettings(): Promise<PrintSettings[]> {
+    return await db.select().from(printSettings).where(eq(printSettings.isActive, true));
+  }
+
+  async getPrintSetting(documentType: string): Promise<PrintSettings | undefined> {
+    const [setting] = await db.select().from(printSettings)
+      .where(eq(printSettings.documentType, documentType));
+    return setting;
+  }
+
+  async savePrintSetting(setting: InsertPrintSettings): Promise<PrintSettings> {
+    const existing = await this.getPrintSetting(setting.documentType);
+    if (existing) {
+      const [updated] = await db.update(printSettings)
+        .set({ ...setting, updatedAt: new Date() })
+        .where(eq(printSettings.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(printSettings).values(setting).returning();
+      return created;
+    }
+  }
+
+  async seedDefaultPrintSettings(): Promise<void> {
+    const existing = await db.select().from(printSettings);
+    if (existing.length === 0) {
+      await db.insert(printSettings).values([
+        { 
+          documentType: "remito", 
+          documentName: "Remito",
+          paperSize: "A6",
+          showPrices: false,
+          showUnitPrice: false,
+          showSubtotal: false,
+          showTotal: false,
+          showTaxes: false,
+          showDiscounts: false,
+        },
+        { 
+          documentType: "factura", 
+          documentName: "Factura",
+          paperSize: "A4",
+          showQrCode: true,
+        },
+        { 
+          documentType: "presupuesto", 
+          documentName: "Presupuesto / Cotización",
+          paperSize: "A4",
+        },
+        { 
+          documentType: "ticket", 
+          documentName: "Ticket de Venta",
+          paperSize: "Ticket80",
+          showLogo: false,
+        },
+      ]);
+    }
   }
 }
 

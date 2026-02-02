@@ -23,9 +23,10 @@ import NotFound from "@/pages/not-found";
 import { 
   Quotes, Orders, Loyalty, Ecommerce, StockAlerts, StockAdjustment, 
   BulkEdit, PurchaseOrders, PriceLists,
-  Purchases, Balances, Installments, Finance, Reports, SettingsPage, Integrations 
+  Purchases, Balances, Installments, Finance, Reports, Integrations 
 } from "@/pages/ComingSoon";
 import ImportData from "@/pages/ImportData";
+import Settings from "@/pages/Settings";
 import BrandsCategories from "@/pages/BrandsCategories";
 import PriceUpdate from "@/pages/PriceUpdate";
 
@@ -114,7 +115,7 @@ function Router() {
       <Route path="/users" component={Users} />
       
       {/* CONFIGURACIÓN */}
-      <Route path="/settings" component={SettingsPage} />
+      <Route path="/settings" component={Settings} />
       <Route path="/integrations" component={Integrations} />
       
       {/* Legacy routes */}

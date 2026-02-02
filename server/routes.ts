@@ -1660,5 +1660,44 @@ export async function registerRoutes(
     }
   });
 
+  // === COMPANY SETTINGS ROUTES ===
+  app.get("/api/settings/company", isAuthenticated, async (req, res) => {
+    const settings = await storage.getCompanySettings();
+    res.json(settings || null);
+  });
+
+  app.post("/api/settings/company", isAuthenticated, async (req, res) => {
+    try {
+      const settings = await storage.saveCompanySettings(req.body);
+      res.json(settings);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al guardar configuración" });
+    }
+  });
+
+  // === PRINT SETTINGS ROUTES ===
+  app.get("/api/settings/print", isAuthenticated, async (req, res) => {
+    const settings = await storage.getPrintSettings();
+    res.json(settings);
+  });
+
+  app.get("/api/settings/print/:documentType", isAuthenticated, async (req, res) => {
+    const setting = await storage.getPrintSetting(req.params.documentType);
+    if (!setting) return res.status(404).json({ message: "Configuración no encontrada" });
+    res.json(setting);
+  });
+
+  app.post("/api/settings/print", isAuthenticated, async (req, res) => {
+    try {
+      const setting = await storage.savePrintSetting(req.body);
+      res.json(setting);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al guardar configuración de impresión" });
+    }
+  });
+
+  // Seed default print settings
+  await storage.seedDefaultPrintSettings();
+
   return httpServer;
 }

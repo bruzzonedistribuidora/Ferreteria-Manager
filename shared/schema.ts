@@ -902,3 +902,103 @@ export const insertPriceUpdateLogSchema = createInsertSchema(priceUpdateLogs).om
 
 export type PriceUpdateLog = typeof priceUpdateLogs.$inferSelect;
 export type InsertPriceUpdateLog = z.infer<typeof insertPriceUpdateLogSchema>;
+
+// === COMPANY SETTINGS (Datos de la Empresa) ===
+export const companySettings = pgTable("company_settings", {
+  id: serial("id").primaryKey(),
+  // Datos generales
+  companyName: text("company_name").notNull(),
+  fantasyName: text("fantasy_name"), // Nombre de fantasía
+  cuit: text("cuit").notNull(),
+  taxCondition: text("tax_condition"), // Responsable Inscripto, Monotributista, etc.
+  grossIncome: text("gross_income"), // Número de ingresos brutos
+  activityStartDate: timestamp("activity_start_date"),
+  
+  // Dirección
+  address: text("address"),
+  city: text("city"),
+  province: text("province"),
+  postalCode: text("postal_code"),
+  country: text("country").default("Argentina"),
+  
+  // Contacto
+  phone: text("phone"),
+  email: text("email"),
+  website: text("website"),
+  
+  // Logo
+  logoUrl: text("logo_url"),
+  
+  // ARCA/AFIP Configuration
+  arcaCertificate: text("arca_certificate"), // Certificado .pem
+  arcaPrivateKey: text("arca_private_key"), // Clave privada
+  arcaPointOfSale: integer("arca_point_of_sale"), // Punto de venta
+  arcaEnvironment: text("arca_environment").default("testing"), // testing/production
+  arcaLastCaeNumber: integer("arca_last_cae_number"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCompanySettingsSchema = createInsertSchema(companySettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type CompanySettings = typeof companySettings.$inferSelect;
+export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
+
+// === PRINT SETTINGS (Configuración de Impresión) ===
+export const printSettings = pgTable("print_settings", {
+  id: serial("id").primaryKey(),
+  documentType: text("document_type").notNull().unique(), // remito, factura, presupuesto, ticket, etc.
+  documentName: text("document_name").notNull(), // Nombre para mostrar
+  
+  // Formato de página
+  paperSize: text("paper_size").default("A4"), // A4, A5, A6, Ticket80, Ticket58
+  orientation: text("orientation").default("portrait"), // portrait, landscape
+  marginTop: integer("margin_top").default(10),
+  marginBottom: integer("margin_bottom").default(10),
+  marginLeft: integer("margin_left").default(10),
+  marginRight: integer("margin_right").default(10),
+  
+  // Elementos a mostrar
+  showLogo: boolean("show_logo").default(true),
+  showCompanyData: boolean("show_company_data").default(true),
+  showClientData: boolean("show_client_data").default(true),
+  showPrices: boolean("show_prices").default(true),
+  showUnitPrice: boolean("show_unit_price").default(true),
+  showSubtotal: boolean("show_subtotal").default(true),
+  showDiscounts: boolean("show_discounts").default(true),
+  showTaxes: boolean("show_taxes").default(true),
+  showTotal: boolean("show_total").default(true),
+  showPaymentMethod: boolean("show_payment_method").default(true),
+  showNotes: boolean("show_notes").default(true),
+  showBarcode: boolean("show_barcode").default(false),
+  showQrCode: boolean("show_qr_code").default(false),
+  showSignature: boolean("show_signature").default(false),
+  
+  // Texto personalizado
+  headerText: text("header_text"),
+  footerText: text("footer_text"),
+  
+  // Columnas personalizadas
+  customColumns: jsonb("custom_columns"), // ["codigo", "descripcion", "cantidad", "precio", "total"]
+  
+  // Número de copias
+  copies: integer("copies").default(1),
+  
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPrintSettingsSchema = createInsertSchema(printSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type PrintSettings = typeof printSettings.$inferSelect;
+export type InsertPrintSettings = z.infer<typeof insertPrintSettingsSchema>;
