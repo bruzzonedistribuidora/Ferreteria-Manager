@@ -129,6 +129,15 @@ export async function registerRoutes(
     res.json(product);
   });
 
+  app.patch("/api/products/:id", isAuthenticated, async (req, res) => {
+    try {
+      const product = await storage.updateProduct(Number(req.params.id), req.body);
+      res.json(product);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al actualizar producto" });
+    }
+  });
+
   app.delete(api.products.delete.path, isAuthenticated, async (req, res) => {
     await storage.deleteProduct(Number(req.params.id));
     res.status(204).send();
