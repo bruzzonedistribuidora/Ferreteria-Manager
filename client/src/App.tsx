@@ -16,6 +16,7 @@ import Remitos from "@/pages/Remitos";
 import Users from "@/pages/Users";
 import Suppliers from "@/pages/Suppliers";
 import PaymentMethods from "@/pages/PaymentMethods";
+import CashRegisters from "@/pages/CashRegisters";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 
@@ -77,6 +78,7 @@ function Router() {
       <Route path="/remitos" component={Remitos} />
       <Route path="/suppliers" component={Suppliers} />
       <Route path="/payment-methods" component={PaymentMethods} />
+      <Route path="/cash-registers" component={CashRegisters} />
       <Route path="/users" component={Users} />
       <Route component={NotFound} />
     </Switch>

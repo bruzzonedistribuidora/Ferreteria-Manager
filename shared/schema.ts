@@ -609,3 +609,104 @@ export type InsertBankAccount = z.infer<typeof insertBankAccountSchema>;
 export type CardWithPlans = CardConfiguration & {
   installmentPlans: CardInstallmentPlan[];
 };
+
+// === MODULE 6: CASH REGISTERS (CAJAS) ===
+export const cashRegisters = pgTable("cash_registers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  currentBalance: numeric("current_balance", { precision: 14, scale: 2 }).default("0"),
+  lastClosedAt: timestamp("last_closed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const cashRegisterSessions = pgTable("cash_register_sessions", {
+  id: serial("id").primaryKey(),
+  cashRegisterId: integer("cash_register_id").notNull().references(() => cashRegisters.id),
+  openedBy: text("opened_by").notNull().references(() => users.id),
+  closedBy: text("closed_by").references(() => users.id),
+  openingBalance: numeric("opening_balance", { precision: 14, scale: 2 }).notNull(),
+  closingBalance: numeric("closing_balance", { precision: 14, scale: 2 }),
+  expectedBalance: numeric("expected_balance", { precision: 14, scale: 2 }),
+  difference: numeric("difference", { precision: 14, scale: 2 }),
+  status: text("status").notNull().default("open"), // open, closed
+  openedAt: timestamp("opened_at").defaultNow(),
+  closedAt: timestamp("closed_at"),
+  notes: text("notes"),
+});
+
+export const cashMovements = pgTable("cash_movements", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => cashRegisterSessions.id),
+  cashRegisterId: integer("cash_register_id").notNull().references(() => cashRegisters.id),
+  userId: text("user_id").notNull().references(() => users.id),
+  type: text("type").notNull(), // income, expense, sale, payment, transfer_in, transfer_out
+  category: text("category"), // sale, purchase, expense, deposit, withdrawal, adjustment
+  paymentMethodId: integer("payment_method_id").references(() => paymentMethods.id),
+  saleId: integer("sale_id"),
+  amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+  description: text("description"),
+  reference: text("reference"), // numero de comprobante, factura, etc.
+  runningBalance: numeric("running_balance", { precision: 14, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === CHECKS WALLET (CARTERA DE CHEQUES) ===
+export const checksWallet = pgTable("checks_wallet", {
+  id: serial("id").primaryKey(),
+  checkType: text("check_type").notNull(), // physical, echeq
+  checkNumber: text("check_number").notNull(),
+  bankName: text("bank_name").notNull(),
+  bankBranch: text("bank_branch"),
+  amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+  issueDate: timestamp("issue_date").notNull(),
+  dueDate: timestamp("due_date").notNull(),
+  issuerName: text("issuer_name").notNull(),
+  issuerCuit: text("issuer_cuit"),
+  payeeName: text("payee_name"), // A favor de
+  status: text("status").notNull().default("pending"), // pending, deposited, cashed, rejected, endorsed
+  endorsedTo: text("endorsed_to"), // Endosado a (nombre)
+  endorsedDate: timestamp("endorsed_date"),
+  depositDate: timestamp("deposit_date"),
+  depositAccountId: integer("deposit_account_id").references(() => bankAccounts.id),
+  rejectionReason: text("rejection_reason"),
+  rejectionDate: timestamp("rejection_date"),
+  originType: text("origin_type"), // sale, collection, purchase
+  originId: integer("origin_id"), // ID de venta o cobro
+  clientId: integer("client_id").references(() => clients.id),
+  notes: text("notes"),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Insert schemas for Module 6
+export const insertCashRegisterSchema = createInsertSchema(cashRegisters).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCashSessionSchema = createInsertSchema(cashRegisterSessions).omit({ id: true, openedAt: true });
+export const insertCashMovementSchema = createInsertSchema(cashMovements).omit({ id: true, createdAt: true });
+export const insertCheckSchema = createInsertSchema(checksWallet).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Types for Module 6
+export type CashRegister = typeof cashRegisters.$inferSelect;
+export type CashRegisterSession = typeof cashRegisterSessions.$inferSelect;
+export type CashMovement = typeof cashMovements.$inferSelect;
+export type Check = typeof checksWallet.$inferSelect;
+export type InsertCashRegister = z.infer<typeof insertCashRegisterSchema>;
+export type InsertCashSession = z.infer<typeof insertCashSessionSchema>;
+export type InsertCashMovement = z.infer<typeof insertCashMovementSchema>;
+export type InsertCheck = z.infer<typeof insertCheckSchema>;
+
+// Session with details
+export type CashSessionWithDetails = CashRegisterSession & {
+  cashRegister: CashRegister;
+  movements: CashMovement[];
+};
+
+// Check with alerts
+export type CheckWithAlert = Check & {
+  daysUntilDue: number;
+  isOverdue: boolean;
+  alertLevel: 'normal' | 'warning' | 'urgent' | 'overdue';
+};

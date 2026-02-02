@@ -834,5 +834,283 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // === Cash Registers Routes ===
+  await storage.seedDefaultCashRegister();
+
+  app.get("/api/cash-registers", isAuthenticated, async (req, res) => {
+    const registers = await storage.getCashRegisters();
+    res.json(registers);
+  });
+
+  app.get("/api/cash-registers/active", isAuthenticated, async (req, res) => {
+    const registers = await storage.getActiveCashRegisters();
+    res.json(registers);
+  });
+
+  app.get("/api/cash-registers/:id", isAuthenticated, async (req, res) => {
+    const register = await storage.getCashRegister(Number(req.params.id));
+    if (!register) return res.status(404).json({ message: "Caja no encontrada" });
+    res.json(register);
+  });
+
+  app.get("/api/cash-registers/:id/summary", isAuthenticated, async (req, res) => {
+    const summary = await storage.getCashRegisterSummary(Number(req.params.id));
+    res.json(summary);
+  });
+
+  app.get("/api/cash-registers/:id/current-session", isAuthenticated, async (req, res) => {
+    const session = await storage.getCurrentSession(Number(req.params.id));
+    res.json(session || null);
+  });
+
+  app.post("/api/cash-registers", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        isActive: z.boolean().optional(),
+      });
+      const input = schema.parse(req.body);
+      const register = await storage.createCashRegister(input);
+      res.status(201).json(register);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put("/api/cash-registers/:id", isAuthenticated, async (req, res) => {
+    const schema = z.object({
+      name: z.string().optional(),
+      description: z.string().optional(),
+      isActive: z.boolean().optional(),
+    });
+    const input = schema.parse(req.body);
+    const register = await storage.updateCashRegister(Number(req.params.id), input);
+    res.json(register);
+  });
+
+  app.delete("/api/cash-registers/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteCashRegister(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === Cash Sessions Routes ===
+  app.get("/api/cash-sessions/open", isAuthenticated, async (req, res) => {
+    const sessions = await storage.getOpenSessions();
+    res.json(sessions);
+  });
+
+  app.get("/api/cash-registers/:registerId/sessions", isAuthenticated, async (req, res) => {
+    const sessions = await storage.getSessionsByRegister(Number(req.params.registerId));
+    res.json(sessions);
+  });
+
+  app.get("/api/cash-sessions/:id", isAuthenticated, async (req, res) => {
+    const session = await storage.getSessionWithDetails(Number(req.params.id));
+    if (!session) return res.status(404).json({ message: "Sesión no encontrada" });
+    res.json(session);
+  });
+
+  app.post("/api/cash-sessions/open", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        cashRegisterId: z.number(),
+        openingBalance: z.string(),
+      });
+      const input = schema.parse(req.body);
+      const user = req.user as any;
+      const session = await storage.openSession(user.claims.sub, input.cashRegisterId, input.openingBalance);
+      res.status(201).json(session);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      if (err.message) {
+        return res.status(400).json({ message: err.message });
+      }
+      throw err;
+    }
+  });
+
+  app.post("/api/cash-sessions/:id/close", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        closingBalance: z.string(),
+        notes: z.string().optional(),
+      });
+      const input = schema.parse(req.body);
+      const user = req.user as any;
+      const session = await storage.closeSession(user.claims.sub, Number(req.params.id), input.closingBalance, input.notes);
+      res.json(session);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      if (err.message) {
+        return res.status(400).json({ message: err.message });
+      }
+      throw err;
+    }
+  });
+
+  // === Cash Movements Routes ===
+  app.get("/api/cash-sessions/:sessionId/movements", isAuthenticated, async (req, res) => {
+    const movements = await storage.getMovementsBySession(Number(req.params.sessionId));
+    res.json(movements);
+  });
+
+  app.post("/api/cash-movements", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        sessionId: z.number(),
+        cashRegisterId: z.number(),
+        type: z.string(),
+        category: z.string().optional(),
+        paymentMethodId: z.number().optional(),
+        saleId: z.number().optional(),
+        amount: z.string(),
+        description: z.string().optional(),
+        reference: z.string().optional(),
+      });
+      const input = schema.parse(req.body);
+      const user = req.user as any;
+      const movement = await storage.createCashMovement({ ...input, userId: user.claims.sub });
+      res.status(201).json(movement);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      if (err.message) {
+        return res.status(400).json({ message: err.message });
+      }
+      throw err;
+    }
+  });
+
+  // === Checks Wallet Routes ===
+  app.get("/api/checks", isAuthenticated, async (req, res) => {
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const checks = await storage.getChecks(status);
+    res.json(checks);
+  });
+
+  app.get("/api/checks/alerts", isAuthenticated, async (req, res) => {
+    const checks = await storage.getChecksWithAlerts();
+    res.json(checks);
+  });
+
+  app.get("/api/checks/:id", isAuthenticated, async (req, res) => {
+    const check = await storage.getCheck(Number(req.params.id));
+    if (!check) return res.status(404).json({ message: "Cheque no encontrado" });
+    res.json(check);
+  });
+
+  app.get("/api/clients/:clientId/checks", isAuthenticated, async (req, res) => {
+    const checks = await storage.getChecksByClient(Number(req.params.clientId));
+    res.json(checks);
+  });
+
+  app.post("/api/checks", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        checkType: z.string(),
+        checkNumber: z.string(),
+        bankName: z.string(),
+        bankBranch: z.string().optional(),
+        amount: z.string(),
+        issueDate: z.string().transform(s => new Date(s)),
+        dueDate: z.string().transform(s => new Date(s)),
+        issuerName: z.string(),
+        issuerCuit: z.string().optional(),
+        payeeName: z.string().optional(),
+        status: z.string().optional(),
+        originType: z.string().optional(),
+        originId: z.number().optional(),
+        clientId: z.number().optional(),
+        notes: z.string().optional(),
+      });
+      const input = schema.parse(req.body);
+      const user = req.user as any;
+      const check = await storage.createCheck({ ...input, createdBy: user.claims.sub });
+      res.status(201).json(check);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put("/api/checks/:id", isAuthenticated, async (req, res) => {
+    const schema = z.object({
+      checkType: z.string().optional(),
+      checkNumber: z.string().optional(),
+      bankName: z.string().optional(),
+      bankBranch: z.string().optional(),
+      amount: z.string().optional(),
+      issueDate: z.string().transform(s => new Date(s)).optional(),
+      dueDate: z.string().transform(s => new Date(s)).optional(),
+      issuerName: z.string().optional(),
+      issuerCuit: z.string().optional(),
+      payeeName: z.string().optional(),
+      status: z.string().optional(),
+      notes: z.string().optional(),
+    });
+    const input = schema.parse(req.body);
+    const check = await storage.updateCheck(Number(req.params.id), input);
+    res.json(check);
+  });
+
+  app.post("/api/checks/:id/deposit", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        depositAccountId: z.number(),
+      });
+      const input = schema.parse(req.body);
+      const check = await storage.depositCheck(Number(req.params.id), input.depositAccountId);
+      res.json(check);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.post("/api/checks/:id/endorse", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        endorsedTo: z.string(),
+      });
+      const input = schema.parse(req.body);
+      const check = await storage.endorseCheck(Number(req.params.id), input.endorsedTo);
+      res.json(check);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.post("/api/checks/:id/reject", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        reason: z.string(),
+      });
+      const input = schema.parse(req.body);
+      const check = await storage.rejectCheck(Number(req.params.id), input.reason);
+      res.json(check);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
   return httpServer;
 }

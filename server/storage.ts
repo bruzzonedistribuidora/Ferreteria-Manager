@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, desc, sql, sum, count, and, inArray, or, ilike } from "drizzle-orm";
+import { eq, desc, sql, sum, count, and, inArray, or, ilike, gte, lte, asc } from "drizzle-orm";
 import { 
   products, categories, clients, sales, saleItems, salePayments,
   deliveryNotes, deliveryNoteItems, preInvoices, preInvoiceDeliveryNotes,
@@ -7,6 +7,7 @@ import {
   clientAuthorizedContacts, clientAccountMovements,
   suppliers, supplierAccountMovements, supplierProductDiscounts,
   paymentMethods, cardConfigurations, cardInstallmentPlans, bankAccounts,
+  cashRegisters, cashRegisterSessions, cashMovements, checksWallet,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -26,7 +27,11 @@ import {
   type PaymentMethod, type InsertPaymentMethod,
   type CardConfiguration, type InsertCardConfig, type CardWithPlans,
   type CardInstallmentPlan, type InsertCardInstallment,
-  type BankAccount, type InsertBankAccount
+  type BankAccount, type InsertBankAccount,
+  type CashRegister, type InsertCashRegister,
+  type CashRegisterSession, type InsertCashSession, type CashSessionWithDetails,
+  type CashMovement, type InsertCashMovement,
+  type Check, type InsertCheck, type CheckWithAlert
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -159,6 +164,39 @@ export interface IStorage {
   createBankAccount(account: InsertBankAccount): Promise<BankAccount>;
   updateBankAccount(id: number, updates: Partial<InsertBankAccount>): Promise<BankAccount>;
   deleteBankAccount(id: number): Promise<void>;
+
+  // Cash Registers
+  getCashRegisters(): Promise<CashRegister[]>;
+  getActiveCashRegisters(): Promise<CashRegister[]>;
+  getCashRegister(id: number): Promise<CashRegister | undefined>;
+  createCashRegister(register: InsertCashRegister): Promise<CashRegister>;
+  updateCashRegister(id: number, updates: Partial<InsertCashRegister>): Promise<CashRegister>;
+  deleteCashRegister(id: number): Promise<void>;
+  seedDefaultCashRegister(): Promise<void>;
+
+  // Cash Register Sessions
+  getOpenSessions(): Promise<CashRegisterSession[]>;
+  getSessionsByRegister(cashRegisterId: number): Promise<CashRegisterSession[]>;
+  getSessionWithDetails(sessionId: number): Promise<CashSessionWithDetails | undefined>;
+  openSession(userId: string, cashRegisterId: number, openingBalance: string): Promise<CashRegisterSession>;
+  closeSession(userId: string, sessionId: number, closingBalance: string, notes?: string): Promise<CashRegisterSession>;
+  getCurrentSession(cashRegisterId: number): Promise<CashRegisterSession | undefined>;
+
+  // Cash Movements
+  getMovementsBySession(sessionId: number): Promise<CashMovement[]>;
+  createCashMovement(movement: InsertCashMovement): Promise<CashMovement>;
+  getCashRegisterSummary(cashRegisterId: number): Promise<{ totalIncome: string; totalExpense: string; currentBalance: string }>;
+
+  // Checks Wallet
+  getChecks(status?: string): Promise<Check[]>;
+  getChecksByClient(clientId: number): Promise<Check[]>;
+  getCheck(id: number): Promise<Check | undefined>;
+  createCheck(check: InsertCheck): Promise<Check>;
+  updateCheck(id: number, updates: Partial<InsertCheck>): Promise<Check>;
+  getChecksWithAlerts(): Promise<CheckWithAlert[]>;
+  depositCheck(id: number, depositAccountId: number): Promise<Check>;
+  endorseCheck(id: number, endorsedTo: string): Promise<Check>;
+  rejectCheck(id: number, reason: string): Promise<Check>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1389,6 +1427,347 @@ export class DatabaseStorage implements IStorage {
     await db.update(bankAccounts)
       .set({ isActive: false, updatedAt: new Date() })
       .where(eq(bankAccounts.id, id));
+  }
+
+  // === CASH REGISTERS ===
+  async getCashRegisters(): Promise<CashRegister[]> {
+    return await db.select().from(cashRegisters).orderBy(cashRegisters.name);
+  }
+
+  async getActiveCashRegisters(): Promise<CashRegister[]> {
+    return await db.select().from(cashRegisters)
+      .where(eq(cashRegisters.isActive, true))
+      .orderBy(cashRegisters.name);
+  }
+
+  async getCashRegister(id: number): Promise<CashRegister | undefined> {
+    const [register] = await db.select().from(cashRegisters)
+      .where(eq(cashRegisters.id, id));
+    return register;
+  }
+
+  async createCashRegister(register: InsertCashRegister): Promise<CashRegister> {
+    const [newRegister] = await db.insert(cashRegisters).values(register).returning();
+    return newRegister;
+  }
+
+  async updateCashRegister(id: number, updates: Partial<InsertCashRegister>): Promise<CashRegister> {
+    const [updated] = await db.update(cashRegisters)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(cashRegisters.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCashRegister(id: number): Promise<void> {
+    await db.update(cashRegisters)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(cashRegisters.id, id));
+  }
+
+  async seedDefaultCashRegister(): Promise<void> {
+    const existing = await db.select().from(cashRegisters);
+    if (existing.length === 0) {
+      await db.insert(cashRegisters).values({
+        name: "Caja Principal",
+        description: "Caja principal del local",
+        isActive: true,
+        currentBalance: "0",
+      });
+    }
+  }
+
+  // === CASH REGISTER SESSIONS ===
+  async getOpenSessions(): Promise<CashRegisterSession[]> {
+    return await db.select().from(cashRegisterSessions)
+      .where(eq(cashRegisterSessions.status, "open"))
+      .orderBy(desc(cashRegisterSessions.openedAt));
+  }
+
+  async getSessionsByRegister(cashRegisterId: number): Promise<CashRegisterSession[]> {
+    return await db.select().from(cashRegisterSessions)
+      .where(eq(cashRegisterSessions.cashRegisterId, cashRegisterId))
+      .orderBy(desc(cashRegisterSessions.openedAt));
+  }
+
+  async getSessionWithDetails(sessionId: number): Promise<CashSessionWithDetails | undefined> {
+    const [session] = await db.select().from(cashRegisterSessions)
+      .where(eq(cashRegisterSessions.id, sessionId));
+    
+    if (!session) return undefined;
+
+    const [register] = await db.select().from(cashRegisters)
+      .where(eq(cashRegisters.id, session.cashRegisterId));
+
+    const movements = await db.select().from(cashMovements)
+      .where(eq(cashMovements.sessionId, sessionId))
+      .orderBy(desc(cashMovements.createdAt));
+
+    return {
+      ...session,
+      cashRegister: register,
+      movements,
+    };
+  }
+
+  async openSession(userId: string, cashRegisterId: number, openingBalance: string): Promise<CashRegisterSession> {
+    // Check if there's already an open session
+    const existing = await db.select().from(cashRegisterSessions)
+      .where(and(
+        eq(cashRegisterSessions.cashRegisterId, cashRegisterId),
+        eq(cashRegisterSessions.status, "open")
+      ));
+    
+    if (existing.length > 0) {
+      throw new Error("Ya existe una sesión abierta para esta caja");
+    }
+
+    const [session] = await db.insert(cashRegisterSessions).values({
+      cashRegisterId,
+      openedBy: userId,
+      openingBalance,
+      status: "open",
+    }).returning();
+
+    return session;
+  }
+
+  async closeSession(userId: string, sessionId: number, closingBalance: string, notes?: string): Promise<CashRegisterSession> {
+    const [session] = await db.select().from(cashRegisterSessions)
+      .where(eq(cashRegisterSessions.id, sessionId));
+
+    if (!session) throw new Error("Sesión no encontrada");
+    if (session.status === "closed") throw new Error("La sesión ya está cerrada");
+
+    // Calculate expected balance from movements
+    const movements = await db.select().from(cashMovements)
+      .where(eq(cashMovements.sessionId, sessionId));
+
+    const openingBalance = parseFloat(session.openingBalance);
+    let expectedBalance = openingBalance;
+    
+    for (const mov of movements) {
+      const amount = parseFloat(mov.amount);
+      if (mov.type === "income" || mov.type === "sale" || mov.type === "transfer_in") {
+        expectedBalance += amount;
+      } else {
+        expectedBalance -= amount;
+      }
+    }
+
+    const closingBalanceNum = parseFloat(closingBalance);
+    const difference = closingBalanceNum - expectedBalance;
+
+    const [updated] = await db.update(cashRegisterSessions)
+      .set({
+        closedBy: userId,
+        closingBalance,
+        expectedBalance: expectedBalance.toFixed(2),
+        difference: difference.toFixed(2),
+        status: "closed",
+        closedAt: new Date(),
+        notes,
+      })
+      .where(eq(cashRegisterSessions.id, sessionId))
+      .returning();
+
+    // Update cash register current balance
+    await db.update(cashRegisters)
+      .set({ 
+        currentBalance: closingBalance,
+        lastClosedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(cashRegisters.id, session.cashRegisterId));
+
+    return updated;
+  }
+
+  async getCurrentSession(cashRegisterId: number): Promise<CashRegisterSession | undefined> {
+    const [session] = await db.select().from(cashRegisterSessions)
+      .where(and(
+        eq(cashRegisterSessions.cashRegisterId, cashRegisterId),
+        eq(cashRegisterSessions.status, "open")
+      ));
+    return session;
+  }
+
+  // === CASH MOVEMENTS ===
+  async getMovementsBySession(sessionId: number): Promise<CashMovement[]> {
+    return await db.select().from(cashMovements)
+      .where(eq(cashMovements.sessionId, sessionId))
+      .orderBy(desc(cashMovements.createdAt));
+  }
+
+  async createCashMovement(movement: InsertCashMovement): Promise<CashMovement> {
+    // Calculate running balance
+    const session = await db.select().from(cashRegisterSessions)
+      .where(eq(cashRegisterSessions.id, movement.sessionId));
+
+    if (session.length === 0 || session[0].status !== "open") {
+      throw new Error("No hay sesión abierta para registrar movimientos");
+    }
+
+    const lastMovements = await db.select().from(cashMovements)
+      .where(eq(cashMovements.sessionId, movement.sessionId))
+      .orderBy(desc(cashMovements.createdAt))
+      .limit(1);
+
+    let runningBalance = parseFloat(session[0].openingBalance);
+    if (lastMovements.length > 0 && lastMovements[0].runningBalance) {
+      runningBalance = parseFloat(lastMovements[0].runningBalance);
+    }
+
+    const amount = parseFloat(movement.amount);
+    if (movement.type === "income" || movement.type === "sale" || movement.type === "transfer_in") {
+      runningBalance += amount;
+    } else {
+      runningBalance -= amount;
+    }
+
+    const [newMovement] = await db.insert(cashMovements).values({
+      ...movement,
+      runningBalance: runningBalance.toFixed(2),
+    }).returning();
+
+    // Update cash register current balance
+    await db.update(cashRegisters)
+      .set({ currentBalance: runningBalance.toFixed(2), updatedAt: new Date() })
+      .where(eq(cashRegisters.id, movement.cashRegisterId));
+
+    return newMovement;
+  }
+
+  async getCashRegisterSummary(cashRegisterId: number): Promise<{ totalIncome: string; totalExpense: string; currentBalance: string }> {
+    const [register] = await db.select().from(cashRegisters)
+      .where(eq(cashRegisters.id, cashRegisterId));
+
+    const currentSession = await this.getCurrentSession(cashRegisterId);
+    
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    if (currentSession) {
+      const movements = await this.getMovementsBySession(currentSession.id);
+      for (const mov of movements) {
+        const amount = parseFloat(mov.amount);
+        if (mov.type === "income" || mov.type === "sale" || mov.type === "transfer_in") {
+          totalIncome += amount;
+        } else {
+          totalExpense += amount;
+        }
+      }
+    }
+
+    return {
+      totalIncome: totalIncome.toFixed(2),
+      totalExpense: totalExpense.toFixed(2),
+      currentBalance: register?.currentBalance || "0",
+    };
+  }
+
+  // === CHECKS WALLET ===
+  async getChecks(status?: string): Promise<Check[]> {
+    if (status) {
+      return await db.select().from(checksWallet)
+        .where(eq(checksWallet.status, status))
+        .orderBy(asc(checksWallet.dueDate));
+    }
+    return await db.select().from(checksWallet)
+      .orderBy(asc(checksWallet.dueDate));
+  }
+
+  async getChecksByClient(clientId: number): Promise<Check[]> {
+    return await db.select().from(checksWallet)
+      .where(eq(checksWallet.clientId, clientId))
+      .orderBy(asc(checksWallet.dueDate));
+  }
+
+  async getCheck(id: number): Promise<Check | undefined> {
+    const [check] = await db.select().from(checksWallet)
+      .where(eq(checksWallet.id, id));
+    return check;
+  }
+
+  async createCheck(check: InsertCheck): Promise<Check> {
+    const [newCheck] = await db.insert(checksWallet).values(check).returning();
+    return newCheck;
+  }
+
+  async updateCheck(id: number, updates: Partial<InsertCheck>): Promise<Check> {
+    const [updated] = await db.update(checksWallet)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(checksWallet.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getChecksWithAlerts(): Promise<CheckWithAlert[]> {
+    const checks = await db.select().from(checksWallet)
+      .where(eq(checksWallet.status, "pending"))
+      .orderBy(asc(checksWallet.dueDate));
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return checks.map(check => {
+      const dueDate = new Date(check.dueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      const diffTime = dueDate.getTime() - today.getTime();
+      const daysUntilDue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const isOverdue = daysUntilDue < 0;
+      
+      let alertLevel: 'normal' | 'warning' | 'urgent' | 'overdue' = 'normal';
+      if (isOverdue) alertLevel = 'overdue';
+      else if (daysUntilDue <= 3) alertLevel = 'urgent';
+      else if (daysUntilDue <= 7) alertLevel = 'warning';
+
+      return {
+        ...check,
+        daysUntilDue,
+        isOverdue,
+        alertLevel,
+      };
+    });
+  }
+
+  async depositCheck(id: number, depositAccountId: number): Promise<Check> {
+    const [updated] = await db.update(checksWallet)
+      .set({
+        status: "deposited",
+        depositAccountId,
+        depositDate: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(checksWallet.id, id))
+      .returning();
+    return updated;
+  }
+
+  async endorseCheck(id: number, endorsedTo: string): Promise<Check> {
+    const [updated] = await db.update(checksWallet)
+      .set({
+        status: "endorsed",
+        endorsedTo,
+        endorsedDate: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(checksWallet.id, id))
+      .returning();
+    return updated;
+  }
+
+  async rejectCheck(id: number, reason: string): Promise<Check> {
+    const [updated] = await db.update(checksWallet)
+      .set({
+        status: "rejected",
+        rejectionReason: reason,
+        rejectionDate: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(checksWallet.id, id))
+      .returning();
+    return updated;
   }
 }
 
