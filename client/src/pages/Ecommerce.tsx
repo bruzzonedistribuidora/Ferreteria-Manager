@@ -104,12 +104,6 @@ export default function Ecommerce() {
     },
   });
 
-  const togglePublishOnline = (product: Product) => {
-    updateProductMutation.mutate({
-      id: product.id,
-      data: { publishOnline: !product.publishOnline },
-    });
-  };
 
   const filteredProducts = allProducts.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -237,10 +231,12 @@ export default function Ecommerce() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[80px]">Online</TableHead>
-                    <TableHead>SKU</TableHead>
+                    <TableHead className="w-[60px]">Online</TableHead>
+                    <TableHead className="w-[60px]">Dest.</TableHead>
+                    <TableHead className="w-[60px]">Oferta</TableHead>
                     <TableHead>Producto</TableHead>
                     <TableHead>Precio</TableHead>
+                    <TableHead>Precio Oferta</TableHead>
                     <TableHead>Stock</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -250,22 +246,61 @@ export default function Ecommerce() {
                       <TableCell>
                         <Switch
                           checked={product.publishOnline || false}
-                          onCheckedChange={() => togglePublishOnline(product)}
+                          onCheckedChange={() => updateProductMutation.mutate({
+                            id: product.id,
+                            data: { publishOnline: !product.publishOnline }
+                          })}
                           data-testid={`switch-publish-${product.id}`}
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{product.sku}</TableCell>
                       <TableCell>
-                        <div>
-                          <p className="font-medium">{product.name}</p>
-                          {product.description && (
-                            <p className="text-sm text-muted-foreground truncate max-w-[300px]">
-                              {product.description}
-                            </p>
-                          )}
+                        <Switch
+                          checked={product.isFeatured || false}
+                          onCheckedChange={() => updateProductMutation.mutate({
+                            id: product.id,
+                            data: { isFeatured: !product.isFeatured }
+                          })}
+                          data-testid={`switch-featured-${product.id}`}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={product.isOnSale || false}
+                          onCheckedChange={() => updateProductMutation.mutate({
+                            id: product.id,
+                            data: { isOnSale: !product.isOnSale }
+                          })}
+                          data-testid={`switch-sale-${product.id}`}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <p className="font-medium">{product.name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>
+                          </div>
+                          {product.isFeatured && <Badge className="bg-yellow-500">Destacado</Badge>}
+                          {product.isOnSale && <Badge className="bg-red-500">Oferta</Badge>}
+                          {product.isNewArrival && <Badge className="bg-green-500">Nuevo</Badge>}
                         </div>
                       </TableCell>
                       <TableCell>${Number(product.priceWithTax || product.price).toLocaleString()}</TableCell>
+                      <TableCell>
+                        {product.isOnSale ? (
+                          <Input
+                            type="number"
+                            className="w-24 h-8"
+                            value={product.salePrice || ""}
+                            placeholder="Precio"
+                            onChange={(e) => updateProductMutation.mutate({
+                              id: product.id,
+                              data: { salePrice: e.target.value }
+                            })}
+                          />
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={Number(product.stockQuantity) > 0 ? "default" : "secondary"}>
                           {product.stockQuantity || 0}

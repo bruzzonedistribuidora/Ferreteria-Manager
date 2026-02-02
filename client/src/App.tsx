@@ -26,6 +26,7 @@ import {
   Purchases, Balances, Installments, Finance, Reports, Integrations 
 } from "@/pages/ComingSoon";
 import Ecommerce from "@/pages/Ecommerce";
+import Store from "@/pages/Store";
 import ImportData from "@/pages/ImportData";
 import Settings from "@/pages/Settings";
 import BrandsCategories from "@/pages/BrandsCategories";
@@ -73,6 +74,7 @@ function Router() {
     return (
       <Switch>
         <Route path="/" component={Landing} />
+        <Route path="/tienda" component={Store} />
         <Route component={Landing} />
       </Switch>
     );

@@ -89,6 +89,14 @@ export const products = pgTable("products", {
   fractionalRatio: numeric("fractional_ratio", { precision: 10, scale: 4 }).default("1"), // Ratio conversión
   // E-Commerce
   publishOnline: boolean("publish_online").default(false),
+  isFeatured: boolean("is_featured").default(false),
+  isOnSale: boolean("is_on_sale").default(false),
+  salePrice: numeric("sale_price", { precision: 10, scale: 2 }),
+  salePercent: numeric("sale_percent", { precision: 5, scale: 2 }),
+  isNewArrival: boolean("is_new_arrival").default(false),
+  ecommerceTags: text("ecommerce_tags").array(),
+  ecommerceSortOrder: integer("ecommerce_sort_order").default(0),
+  ecommerceImages: text("ecommerce_images").array(),
   // Meta
   imageUrl: text("image_url"),
   isActive: boolean("is_active").default(true),
