@@ -334,26 +334,26 @@ function NuevoRemitoTab() {
                         <div className="flex items-center gap-1">
                           <Button 
                             size="icon" 
-                            variant="ghost" 
-                            className="h-7 w-7"
+                            variant="ghost"
                             onClick={() => updateQuantity(item.productId, -1)}
+                            data-testid={`button-decrease-${item.productId}`}
                           >
                             <Minus className="w-3 h-3" />
                           </Button>
-                          <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+                          <span className="w-8 text-center text-sm font-medium" data-testid={`text-quantity-${item.productId}`}>{item.quantity}</span>
                           <Button 
                             size="icon" 
-                            variant="ghost" 
-                            className="h-7 w-7"
+                            variant="ghost"
                             onClick={() => updateQuantity(item.productId, 1)}
+                            data-testid={`button-increase-${item.productId}`}
                           >
                             <Plus className="w-3 h-3" />
                           </Button>
                           <Button 
                             size="icon" 
-                            variant="ghost" 
-                            className="h-7 w-7 text-red-500"
+                            variant="ghost"
                             onClick={() => removeFromCart(item.productId)}
+                            data-testid={`button-remove-${item.productId}`}
                           >
                             <Trash2 className="w-3 h-3" />
                           </Button>
@@ -373,7 +373,7 @@ function NuevoRemitoTab() {
                 </span>
               </div>
               <Button 
-                className="w-full bg-orange-500 hover:bg-orange-600"
+                className="w-full bg-orange-500"
                 onClick={handleCreateRemito}
                 disabled={isProcessing || cart.length === 0 || !selectedClientId}
                 data-testid="button-create-remito"
@@ -642,6 +642,7 @@ function AgruparPorClienteTab() {
                         variant="outline" 
                         size="sm"
                         onClick={() => selectAllForClient(client)}
+                        data-testid={`button-select-all-${client.id}`}
                       >
                         Seleccionar Todos
                       </Button>
@@ -649,6 +650,7 @@ function AgruparPorClienteTab() {
                         variant="outline"
                         size="sm"
                         onClick={() => setExpandedClient(expandedClient === client.id ? null : client.id)}
+                        data-testid={`button-toggle-detail-${client.id}`}
                       >
                         {expandedClient === client.id ? 'Ocultar' : 'Ver Detalle'}
                       </Button>
@@ -698,7 +700,7 @@ function AgruparPorClienteTab() {
                         </p>
                       </div>
                       <Button
-                        className="bg-orange-500 hover:bg-orange-600"
+                        className="bg-orange-500"
                         onClick={() => handleGeneratePreInvoice(client.id)}
                         disabled={isPending}
                         data-testid={`button-generate-preinvoice-${client.id}`}
@@ -907,7 +909,7 @@ function PreFacturasTab() {
                   <div className="flex gap-3">
                     <Button
                       variant="outline"
-                      className="flex-1 border-red-200 text-red-600 hover:bg-red-50"
+                      className="flex-1 border-red-200 text-red-600"
                       onClick={() => handleReject(viewPreInvoice.id)}
                       disabled={isPending}
                       data-testid="button-reject"
@@ -915,7 +917,7 @@ function PreFacturasTab() {
                       Rechazar
                     </Button>
                     <Button
-                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      className="flex-1 bg-green-600"
                       onClick={() => handleApprove(viewPreInvoice.id)}
                       disabled={isPending}
                       data-testid="button-approve"

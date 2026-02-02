@@ -9,14 +9,12 @@ import type {
 } from "@shared/schema";
 
 export function useDeliveryNotes(clientId?: number) {
+  const queryKey = clientId 
+    ? ['/api/delivery-notes', { clientId }] 
+    : ['/api/delivery-notes'];
+  
   return useQuery<DeliveryNoteWithDetails[]>({
-    queryKey: clientId ? ['/api/delivery-notes', clientId] : ['/api/delivery-notes'],
-    queryFn: async () => {
-      const url = clientId ? `/api/delivery-notes?clientId=${clientId}` : '/api/delivery-notes';
-      const res = await fetch(url, { credentials: 'include' });
-      if (!res.ok) throw new Error('Error al cargar remitos');
-      return res.json();
-    }
+    queryKey
   });
 }
 
@@ -53,7 +51,6 @@ export function useUpdateDeliveryNoteStatus() {
   });
 }
 
-// Pre-Invoices
 export function usePreInvoices() {
   return useQuery<PreInvoiceWithDetails[]>({
     queryKey: ['/api/pre-invoices']
