@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Upload, FileSpreadsheet, Settings, Check, X, AlertTriangle, 
   TrendingUp, TrendingDown, Minus, ArrowRight, Plus, Pencil, Trash2,
-  CheckCircle, XCircle, AlertCircle, RotateCcw
+  CheckCircle, XCircle, AlertCircle, RotateCcw, Search
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import type { Supplier, SupplierImportTemplate } from "@shared/schema";
@@ -77,6 +77,7 @@ export default function PriceUpdate() {
   const [fileData, setFileData] = useState<any[]>([]);
   const [fileName, setFileName] = useState("");
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [supplierSearch, setSupplierSearch] = useState("");
 
   const { data: suppliers = [] } = useQuery<Supplier[]>({
     queryKey: ["/api/suppliers"],
@@ -312,8 +313,23 @@ export default function PriceUpdate() {
             <CardDescription>Elige el proveedor cuya lista de precios vas a importar</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar proveedor..."
+                value={supplierSearch}
+                onChange={(e) => setSupplierSearch(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-supplier"
+              />
+            </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {suppliers.map(supplier => (
+              {suppliers
+                .filter(s => 
+                  s.name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+                  (s.email && s.email.toLowerCase().includes(supplierSearch.toLowerCase()))
+                )
+                .map(supplier => (
                 <Card 
                   key={supplier.id}
                   className={`cursor-pointer hover-elevate ${selectedSupplierId === supplier.id ? "border-primary border-2" : ""}`}
