@@ -133,6 +133,7 @@ export const api = {
         paymentMethod: z.string(),
         discountPercent: z.number().optional(),
         notes: z.string().optional(),
+        createRemito: z.boolean().optional(), // Generar remito automáticamente
         payments: z.array(z.object({
           paymentMethod: z.string(),
           amount: z.number(),

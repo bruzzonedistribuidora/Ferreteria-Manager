@@ -566,6 +566,11 @@ export class DatabaseStorage implements IStorage {
       });
     }
 
+    // Create remito if requested
+    if (request.createRemito && docType !== "presupuesto" && request.clientId) {
+      await this.convertSaleToRemito(sale.id, userId);
+    }
+
     return sale;
   }
 

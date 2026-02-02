@@ -3,7 +3,9 @@ import { useProducts } from "@/hooks/use-products";
 import { useClients } from "@/hooks/use-clients";
 import { useCreateSale } from "@/hooks/use-sales";
 import { useState, useMemo } from "react";
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, User, Check, Loader2, Banknote, ArrowRightLeft, FileText, Receipt, Percent } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, User, Check, Loader2, Banknote, ArrowRightLeft, FileText, Receipt, Percent, FileCheck, Wallet } from "lucide-react";
+import type { PaymentMethod } from "@shared/schema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 
 type CartItem = {
@@ -43,10 +47,33 @@ export default function Pos() {
   const [documentType, setDocumentType] = useState<string>("ingreso");
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [createRemito, setCreateRemito] = useState(false);
 
   const { data: products, isLoading: loadingProducts } = useProducts();
   const { data: clients } = useClients();
   const { mutate: createSale, isPending: isProcessing } = useCreateSale();
+  
+  const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
+    queryKey: ["/api/payment-methods"],
+  });
+
+  const activePaymentMethods = paymentMethods.filter(pm => pm.isActive);
+  
+  // Sync payment method with active list
+  const effectivePaymentMethod = activePaymentMethods.length > 0 
+    ? (activePaymentMethods.find(pm => pm.code === paymentMethod)?.code || activePaymentMethods[0].code)
+    : paymentMethod;
+
+  const getPaymentIcon = (code: string) => {
+    switch (code) {
+      case 'cash': return Banknote;
+      case 'card': return CreditCard;
+      case 'transfer': return ArrowRightLeft;
+      case 'check': return FileCheck;
+      case 'credit_account': return Wallet;
+      default: return Banknote;
+    }
+  };
 
   const filteredProducts = useMemo(() => {
     if (!products) return [];
@@ -129,8 +156,9 @@ export default function Pos() {
     createSale({
       clientId: selectedClientId === "walk-in" ? undefined : Number(selectedClientId),
       documentType,
-      paymentMethod,
+      paymentMethod: effectivePaymentMethod,
       discountPercent,
+      createRemito,
       items: cart.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -139,9 +167,13 @@ export default function Pos() {
     }, {
       onSuccess: () => {
         const docName = DOC_TYPES[documentType] || "Ticket";
+        let description = `${docName} generado exitosamente.`;
+        if (createRemito) {
+          description += " Remito creado automáticamente.";
+        }
         toast({
           title: documentType === "presupuesto" ? "Presupuesto Generado" : "Venta Completada",
-          description: `${docName} generado exitosamente.`,
+          description,
         });
         setCart([]);
         setIsCheckoutOpen(false);
@@ -149,6 +181,7 @@ export default function Pos() {
         setDocumentType("ingreso");
         setDiscountPercent(0);
         setSelectedClientId("walk-in");
+        setCreateRemito(false);
       },
       onError: (err) => {
         toast({
@@ -337,26 +370,50 @@ export default function Pos() {
                   <div className="flex flex-col gap-2">
                     <label className="text-sm font-medium text-slate-700">Método de Pago</label>
                     <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { key: 'cash', label: 'Efectivo', icon: Banknote },
-                        { key: 'card', label: 'Tarjeta', icon: CreditCard },
-                        { key: 'transfer', label: 'Transferencia', icon: ArrowRightLeft }
-                      ].map((method) => (
-                        <div 
-                          key={method.key}
-                          onClick={() => setPaymentMethod(method.key)}
-                          data-testid={`payment-method-${method.key}`}
-                          className={`
-                            cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-2 transition-all
-                            ${paymentMethod === method.key 
-                              ? 'border-orange-500 bg-orange-50 text-orange-700' 
-                              : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'}
-                          `}
-                        >
-                          <method.icon className="h-6 w-6" />
-                          <span className="text-sm font-medium">{method.label}</span>
-                        </div>
-                      ))}
+                      {activePaymentMethods.length > 0 ? (
+                        activePaymentMethods.map((method) => {
+                          const Icon = getPaymentIcon(method.code);
+                          return (
+                            <div 
+                              key={method.code}
+                              onClick={() => setPaymentMethod(method.code)}
+                              data-testid={`payment-method-${method.code}`}
+                              className={`
+                                cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-2 transition-all
+                                ${paymentMethod === method.code 
+                                  ? 'border-orange-500 bg-orange-50 text-orange-700' 
+                                  : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'}
+                              `}
+                            >
+                              <Icon className="h-6 w-6" />
+                              <span className="text-sm font-medium">{method.name}</span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <>
+                          {[
+                            { key: 'cash', label: 'Efectivo', icon: Banknote },
+                            { key: 'card', label: 'Tarjeta', icon: CreditCard },
+                            { key: 'transfer', label: 'Transferencia', icon: ArrowRightLeft }
+                          ].map((method) => (
+                            <div 
+                              key={method.key}
+                              onClick={() => setPaymentMethod(method.key)}
+                              data-testid={`payment-method-${method.key}`}
+                              className={`
+                                cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-2 transition-all
+                                ${paymentMethod === method.key 
+                                  ? 'border-orange-500 bg-orange-50 text-orange-700' 
+                                  : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'}
+                              `}
+                            >
+                              <method.icon className="h-6 w-6" />
+                              <span className="text-sm font-medium">{method.label}</span>
+                            </div>
+                          ))}
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -377,6 +434,24 @@ export default function Pos() {
                     />
                   </div>
                   
+                  {documentType !== "presupuesto" && selectedClientId !== "walk-in" && (
+                    <div className="flex items-center space-x-2 py-2 px-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <Checkbox 
+                        id="create-remito" 
+                        checked={createRemito}
+                        onCheckedChange={(checked) => setCreateRemito(checked === true)}
+                        data-testid="checkbox-create-remito"
+                      />
+                      <Label 
+                        htmlFor="create-remito" 
+                        className="text-sm font-medium text-blue-700 dark:text-blue-300 cursor-pointer flex items-center gap-2"
+                      >
+                        <Receipt className="h-4 w-4" />
+                        Generar Remito automáticamente
+                      </Label>
+                    </div>
+                  )}
+
                   <div className="bg-slate-100 p-4 rounded-xl space-y-2 mt-2">
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-slate-500">Subtotal</span>

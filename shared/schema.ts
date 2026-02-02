@@ -538,6 +538,7 @@ export type CreateSaleRequest = {
   paymentMethod: string; // Primary method or 'mixed'
   discountPercent?: number;
   notes?: string;
+  createRemito?: boolean; // Generar remito automáticamente
   payments?: SalePaymentInput[]; // For mixed payments
   items: {
     productId: number;
