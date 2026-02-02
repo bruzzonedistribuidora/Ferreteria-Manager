@@ -297,8 +297,13 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(categories);
   }
 
-  async createCategory(name: string, description?: string): Promise<Category> {
-    const [category] = await db.insert(categories).values({ name, description }).returning();
+  async getCategoryByName(name: string): Promise<Category | undefined> {
+    const [category] = await db.select().from(categories).where(eq(categories.name, name));
+    return category;
+  }
+
+  async createCategory(input: { name: string; description?: string }): Promise<Category> {
+    const [category] = await db.insert(categories).values(input).returning();
     return category;
   }
 
@@ -1144,6 +1149,11 @@ export class DatabaseStorage implements IStorage {
   async createSupplier(supplier: InsertSupplier): Promise<Supplier> {
     const [newSupplier] = await db.insert(suppliers).values(supplier).returning();
     return newSupplier;
+  }
+
+  async getSupplierByName(name: string): Promise<Supplier | undefined> {
+    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.name, name));
+    return supplier;
   }
 
   async updateSupplier(id: number, updates: Partial<InsertSupplier>): Promise<Supplier> {
@@ -2019,6 +2029,11 @@ export class DatabaseStorage implements IStorage {
 
   async getBrand(id: number): Promise<Brand | undefined> {
     const [brand] = await db.select().from(brands).where(eq(brands.id, id));
+    return brand;
+  }
+
+  async getBrandByName(name: string): Promise<Brand | undefined> {
+    const [brand] = await db.select().from(brands).where(eq(brands.name, name));
     return brand;
   }
 

@@ -41,6 +41,88 @@ export async function registerRoutes(
     }
   });
 
+  // Import products endpoint with brand/category/supplier name resolution
+  app.post("/api/products/import", isAuthenticated, async (req, res) => {
+    try {
+      const data = req.body;
+      
+      // Handle brand by name
+      let brandId = null;
+      if (data.brandName && typeof data.brandName === 'string' && data.brandName.trim()) {
+        const existingBrand = await storage.getBrandByName(data.brandName.trim());
+        if (existingBrand) {
+          brandId = existingBrand.id;
+        } else {
+          const newBrand = await storage.createBrand({ name: data.brandName.trim() });
+          brandId = newBrand.id;
+        }
+      }
+
+      // Handle category by name
+      let categoryId = null;
+      if (data.categoryName && typeof data.categoryName === 'string' && data.categoryName.trim()) {
+        const existingCategory = await storage.getCategoryByName(data.categoryName.trim());
+        if (existingCategory) {
+          categoryId = existingCategory.id;
+        } else {
+          const newCategory = await storage.createCategory({ name: data.categoryName.trim() });
+          categoryId = newCategory.id;
+        }
+      }
+
+      // Handle supplier by name
+      let supplierId = null;
+      if (data.supplierName && typeof data.supplierName === 'string' && data.supplierName.trim()) {
+        const existingSupplier = await storage.getSupplierByName(data.supplierName.trim());
+        if (existingSupplier) {
+          supplierId = existingSupplier.id;
+        } else {
+          const newSupplier = await storage.createSupplier({ 
+            name: data.supplierName.trim(),
+          });
+          supplierId = newSupplier.id;
+        }
+      }
+
+      // Build product data
+      const productData = {
+        sku: data.sku || `SKU-${Date.now()}`,
+        name: data.name || "Sin nombre",
+        description: data.description || null,
+        barcode: data.barcode || null,
+        additionalCode1: data.additionalCode1 || null,
+        additionalCode2: data.additionalCode2 || null,
+        categoryId,
+        brandId,
+        supplierId,
+        stockUnit: data.stockUnit || "unidad",
+        saleUnit: data.saleUnit || "unidad",
+        listCostNoTax: data.listCostNoTax || data.costNoTax || "0",
+        bulkQuantity: parseInt(data.bulkQuantity) || 1,
+        costNoTax: data.costNoTax || "0",
+        costWithTax: data.costWithTax || "0",
+        profitPercent: data.profitPercent || "60",
+        priceNoTax: data.priceNoTax || "0",
+        priceWithTax: data.priceWithTax || data.price || "0",
+        price: data.price || data.priceWithTax || "0",
+        stockQuantity: parseInt(data.stockQuantity) || 0,
+        minStockLevel: parseInt(data.minStockLevel) || 5,
+        reorderPoint: parseInt(data.reorderPoint) || 10,
+        supplierDiscount1: data.supplierDiscount1 || "0",
+        supplierDiscount2: data.supplierDiscount2 || "0",
+        supplierDiscount3: data.supplierDiscount3 || "0",
+        supplierDiscount4: data.supplierDiscount4 || "0",
+        isActive: true,
+      };
+
+      const product = await storage.createProduct(productData);
+      res.status(201).json(product);
+    } catch (err: any) {
+      console.error("Import error:", err);
+      res.status(400).json({ message: err.message || "Error al importar producto" });
+    }
+  });
+
   app.put(api.products.update.path, isAuthenticated, async (req, res) => {
     const input = api.products.update.input.parse(req.body);
     const product = await storage.updateProduct(Number(req.params.id), input);
@@ -60,7 +142,7 @@ export async function registerRoutes(
 
   app.post(api.categories.create.path, isAuthenticated, async (req, res) => {
     const input = api.categories.create.input.parse(req.body);
-    const category = await storage.createCategory(input.name, input.description || undefined);
+    const category = await storage.createCategory({ name: input.name, description: input.description });
     res.status(201).json(category);
   });
 
@@ -440,10 +522,10 @@ export async function registerRoutes(
     console.log("Seeding database...");
     
     // Categories
-    const tools = await storage.createCategory("Herramientas Manuales", "Martillos, destornilladores, llaves");
-    const powerTools = await storage.createCategory("Herramientas Eléctricas", "Taladros, amoladoras, sierras");
-    const plumbing = await storage.createCategory("Plomería", "Caños, grifería, accesorios");
-    const painting = await storage.createCategory("Pinturería", "Pinturas, pinceles, rodillos");
+    const tools = await storage.createCategory({ name: "Herramientas Manuales", description: "Martillos, destornilladores, llaves" });
+    const powerTools = await storage.createCategory({ name: "Herramientas Eléctricas", description: "Taladros, amoladoras, sierras" });
+    const plumbing = await storage.createCategory({ name: "Plomería", description: "Caños, grifería, accesorios" });
+    const painting = await storage.createCategory({ name: "Pinturería", description: "Pinturas, pinceles, rodillos" });
 
     // Products
     await storage.createProduct({

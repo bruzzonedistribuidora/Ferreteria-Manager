@@ -22,9 +22,10 @@ import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 import { 
   Quotes, Orders, Loyalty, Ecommerce, StockAlerts, StockAdjustment, 
-  BulkEdit, PurchaseOrders, PriceLists, ImportData, BrandsCategories,
+  BulkEdit, PurchaseOrders, PriceLists, BrandsCategories,
   Purchases, Balances, Installments, Finance, Reports, SettingsPage, Integrations 
 } from "@/pages/ComingSoon";
+import ImportData from "@/pages/ImportData";
 
 function PrivateRoute({ component: Component, ...rest }: any) {
   const { isAuthenticated, isLoading } = useAuth();
