@@ -852,3 +852,53 @@ export type StockAlert = {
 export type StockMovementWithDetails = StockMovement & {
   product: Product | null;
 };
+
+// === SUPPLIER IMPORT TEMPLATES (Plantillas de Importación de Proveedores) ===
+export const supplierImportTemplates = pgTable("supplier_import_templates", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
+  name: text("name").notNull(), // Nombre de la plantilla
+  columnMapping: jsonb("column_mapping").notNull(), // { supplierCode: "A", description: "B", price: "C", ... }
+  hasHeaderRow: boolean("has_header_row").default(true), // Si la primera fila es encabezado
+  startRow: integer("start_row").default(1), // Desde qué fila empezar a leer
+  sheetName: text("sheet_name"), // Nombre de la hoja (si es Excel)
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSupplierImportTemplateSchema = createInsertSchema(supplierImportTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SupplierImportTemplate = typeof supplierImportTemplates.$inferSelect;
+export type InsertSupplierImportTemplate = z.infer<typeof insertSupplierImportTemplateSchema>;
+
+// === PRICE UPDATE LOGS (Historial de Actualizaciones de Precios) ===
+export const priceUpdateLogs = pgTable("price_update_logs", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
+  templateId: integer("template_id").references(() => supplierImportTemplates.id),
+  fileName: text("file_name"),
+  totalProducts: integer("total_products").default(0), // Total en el archivo
+  updatedProducts: integer("updated_products").default(0), // Actualizados
+  newProducts: integer("new_products").default(0), // Nuevos (no existían)
+  notFoundProducts: integer("not_found_products").default(0), // No encontrados en sistema
+  discontinuedProducts: integer("discontinued_products").default(0), // Ya no están en la lista
+  avgVariationPercent: numeric("avg_variation_percent", { precision: 8, scale: 2 }), // Variación promedio
+  status: text("status").default("pending"), // pending, processing, completed, cancelled
+  details: jsonb("details"), // Detalles por producto { sku, oldPrice, newPrice, variation }
+  createdAt: timestamp("created_at").defaultNow(),
+  appliedAt: timestamp("applied_at"), // Cuándo se aplicó
+  appliedBy: text("applied_by"), // Quién lo aplicó
+});
+
+export const insertPriceUpdateLogSchema = createInsertSchema(priceUpdateLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type PriceUpdateLog = typeof priceUpdateLogs.$inferSelect;
+export type InsertPriceUpdateLog = z.infer<typeof insertPriceUpdateLogSchema>;

@@ -1427,5 +1427,238 @@ export async function registerRoutes(
     }
   });
 
+  // === SUPPLIER IMPORT TEMPLATES ROUTES ===
+  app.get("/api/supplier-import-templates", isAuthenticated, async (req, res) => {
+    const supplierId = req.query.supplierId ? Number(req.query.supplierId) : undefined;
+    const templates = await storage.getSupplierImportTemplates(supplierId);
+    res.json(templates);
+  });
+
+  app.get("/api/supplier-import-templates/:id", isAuthenticated, async (req, res) => {
+    const template = await storage.getSupplierImportTemplate(Number(req.params.id));
+    if (!template) return res.status(404).json({ message: "Plantilla no encontrada" });
+    res.json(template);
+  });
+
+  app.post("/api/supplier-import-templates", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        supplierId: z.number(),
+        name: z.string().min(1),
+        columnMapping: z.record(z.string()),
+        hasHeaderRow: z.boolean().optional(),
+        startRow: z.number().optional(),
+        sheetName: z.string().optional(),
+      });
+      const input = schema.parse(req.body);
+      const template = await storage.createSupplierImportTemplate(input);
+      res.status(201).json(template);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put("/api/supplier-import-templates/:id", isAuthenticated, async (req, res) => {
+    const template = await storage.updateSupplierImportTemplate(Number(req.params.id), req.body);
+    res.json(template);
+  });
+
+  app.delete("/api/supplier-import-templates/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteSupplierImportTemplate(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === PRICE UPDATE ROUTES ===
+  app.get("/api/price-updates", isAuthenticated, async (req, res) => {
+    const supplierId = req.query.supplierId ? Number(req.query.supplierId) : undefined;
+    const logs = await storage.getPriceUpdateLogs(supplierId);
+    res.json(logs);
+  });
+
+  app.get("/api/price-updates/:id", isAuthenticated, async (req, res) => {
+    const log = await storage.getPriceUpdateLog(Number(req.params.id));
+    if (!log) return res.status(404).json({ message: "Registro no encontrado" });
+    res.json(log);
+  });
+
+  app.post("/api/price-updates/analyze", isAuthenticated, async (req, res) => {
+    try {
+      const { supplierId, templateId, data } = req.body;
+      
+      // Get template
+      const template = await storage.getSupplierImportTemplate(templateId);
+      if (!template) {
+        return res.status(400).json({ message: "Plantilla no encontrada" });
+      }
+
+      // Get existing products for this supplier
+      const existingProducts = await storage.getProductsBySupplierCode(supplierId);
+      const productsByCode = new Map(
+        existingProducts.map(p => [p.supplierCode, p])
+      );
+
+      const mapping = template.columnMapping as Record<string, string>;
+      const analysis: any[] = [];
+      let updatedCount = 0;
+      let notFoundCount = 0;
+      let totalVariation = 0;
+      const processedCodes = new Set<string>();
+
+      for (const row of data) {
+        const supplierCode = row[mapping.supplierCode];
+        const newPrice = parseFloat(row[mapping.price]) || 0;
+        const description = row[mapping.description] || "";
+
+        if (!supplierCode) continue;
+        processedCodes.add(supplierCode);
+
+        const existingProduct = productsByCode.get(supplierCode);
+        
+        if (existingProduct) {
+          const oldPrice = parseFloat(existingProduct.listCostNoTax || existingProduct.costNoTax || "0");
+          const variation = oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0;
+          totalVariation += variation;
+          updatedCount++;
+
+          analysis.push({
+            supplierCode,
+            description,
+            sku: existingProduct.sku,
+            productName: existingProduct.name,
+            oldPrice,
+            newPrice,
+            variation: Math.round(variation * 100) / 100,
+            status: "update"
+          });
+        } else {
+          notFoundCount++;
+          analysis.push({
+            supplierCode,
+            description,
+            sku: null,
+            productName: null,
+            oldPrice: 0,
+            newPrice,
+            variation: 0,
+            status: "not_found"
+          });
+        }
+      }
+
+      // Find discontinued products (in system but not in file)
+      const discontinuedProducts = existingProducts.filter(
+        p => p.supplierCode && !processedCodes.has(p.supplierCode)
+      );
+
+      for (const product of discontinuedProducts) {
+        analysis.push({
+          supplierCode: product.supplierCode,
+          description: product.name,
+          sku: product.sku,
+          productName: product.name,
+          oldPrice: parseFloat(product.listCostNoTax || product.costNoTax || "0"),
+          newPrice: 0,
+          variation: -100,
+          status: "discontinued"
+        });
+      }
+
+      const avgVariation = updatedCount > 0 ? totalVariation / updatedCount : 0;
+
+      // Create log entry
+      const log = await storage.createPriceUpdateLog({
+        supplierId,
+        templateId,
+        fileName: req.body.fileName || "imported_file.xlsx",
+        totalProducts: data.length,
+        updatedProducts: updatedCount,
+        notFoundProducts: notFoundCount,
+        discontinuedProducts: discontinuedProducts.length,
+        avgVariationPercent: String(Math.round(avgVariation * 100) / 100),
+        status: "pending",
+        details: analysis
+      });
+
+      res.json({
+        logId: log.id,
+        summary: {
+          total: data.length,
+          updated: updatedCount,
+          notFound: notFoundCount,
+          discontinued: discontinuedProducts.length,
+          avgVariation: Math.round(avgVariation * 100) / 100
+        },
+        details: analysis
+      });
+    } catch (err: any) {
+      console.error("Price analysis error:", err);
+      res.status(500).json({ message: err.message || "Error al analizar precios" });
+    }
+  });
+
+  app.post("/api/price-updates/:id/apply", isAuthenticated, async (req, res) => {
+    try {
+      const log = await storage.getPriceUpdateLog(Number(req.params.id));
+      if (!log) {
+        return res.status(404).json({ message: "Registro no encontrado" });
+      }
+
+      if (log.status !== "pending") {
+        return res.status(400).json({ message: "Esta actualización ya fue procesada" });
+      }
+
+      const details = log.details as any[];
+      let appliedCount = 0;
+
+      for (const item of details) {
+        if (item.status === "update" && item.sku) {
+          // Find product and update price
+          const products = await storage.getProducts();
+          const product = products.find(p => p.sku === item.sku);
+          
+          if (product) {
+            await storage.updateProduct(product.id, {
+              listCostNoTax: String(item.newPrice),
+              costNoTax: String(item.newPrice),
+              costWithTax: String(item.newPrice * 1.21), // Add IVA 21%
+            });
+            appliedCount++;
+          }
+        }
+      }
+
+      // Update log status
+      const user = req.user as any;
+      await storage.updatePriceUpdateLog(log.id, {
+        status: "completed",
+        appliedAt: new Date(),
+        appliedBy: user?.id || "unknown"
+      });
+
+      res.json({ 
+        success: true, 
+        appliedCount,
+        message: `Se actualizaron ${appliedCount} productos` 
+      });
+    } catch (err: any) {
+      console.error("Price apply error:", err);
+      res.status(500).json({ message: err.message || "Error al aplicar precios" });
+    }
+  });
+
+  app.post("/api/price-updates/:id/cancel", isAuthenticated, async (req, res) => {
+    try {
+      await storage.updatePriceUpdateLog(Number(req.params.id), {
+        status: "cancelled"
+      });
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al cancelar" });
+    }
+  });
+
   return httpServer;
 }

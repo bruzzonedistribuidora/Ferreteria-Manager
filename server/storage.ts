@@ -9,6 +9,7 @@ import {
   paymentMethods, cardConfigurations, cardInstallmentPlans, bankAccounts,
   cashRegisters, cashRegisterSessions, cashMovements, checksWallet,
   stockLocations, stockMovements, brands, warehouses, productWarehouseStock,
+  supplierImportTemplates, priceUpdateLogs,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -37,7 +38,9 @@ import {
   type StockMovement, type InsertStockMovement, type StockMovementWithDetails, type StockAlert,
   type Brand, type InsertBrand,
   type Warehouse, type InsertWarehouse,
-  type ProductWarehouseStock, type InsertProductWarehouseStock
+  type ProductWarehouseStock, type InsertProductWarehouseStock,
+  type SupplierImportTemplate, type InsertSupplierImportTemplate,
+  type PriceUpdateLog, type InsertPriceUpdateLog
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -2159,6 +2162,95 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  // === SUPPLIER IMPORT TEMPLATES ===
+  async getSupplierImportTemplates(supplierId?: number): Promise<SupplierImportTemplate[]> {
+    if (supplierId) {
+      return await db.select().from(supplierImportTemplates)
+        .where(and(
+          eq(supplierImportTemplates.supplierId, supplierId),
+          eq(supplierImportTemplates.isActive, true)
+        ))
+        .orderBy(desc(supplierImportTemplates.createdAt));
+    }
+    return await db.select().from(supplierImportTemplates)
+      .where(eq(supplierImportTemplates.isActive, true))
+      .orderBy(desc(supplierImportTemplates.createdAt));
+  }
+
+  async getSupplierImportTemplate(id: number): Promise<SupplierImportTemplate | undefined> {
+    const [template] = await db.select().from(supplierImportTemplates)
+      .where(eq(supplierImportTemplates.id, id));
+    return template;
+  }
+
+  async createSupplierImportTemplate(template: InsertSupplierImportTemplate): Promise<SupplierImportTemplate> {
+    const [created] = await db.insert(supplierImportTemplates).values(template).returning();
+    return created;
+  }
+
+  async updateSupplierImportTemplate(id: number, updates: Partial<InsertSupplierImportTemplate>): Promise<SupplierImportTemplate> {
+    const [updated] = await db.update(supplierImportTemplates)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(supplierImportTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSupplierImportTemplate(id: number): Promise<void> {
+    await db.update(supplierImportTemplates)
+      .set({ isActive: false })
+      .where(eq(supplierImportTemplates.id, id));
+  }
+
+  // === PRICE UPDATE LOGS ===
+  async getPriceUpdateLogs(supplierId?: number): Promise<PriceUpdateLog[]> {
+    if (supplierId) {
+      return await db.select().from(priceUpdateLogs)
+        .where(eq(priceUpdateLogs.supplierId, supplierId))
+        .orderBy(desc(priceUpdateLogs.createdAt));
+    }
+    return await db.select().from(priceUpdateLogs)
+      .orderBy(desc(priceUpdateLogs.createdAt));
+  }
+
+  async getPriceUpdateLog(id: number): Promise<PriceUpdateLog | undefined> {
+    const [log] = await db.select().from(priceUpdateLogs)
+      .where(eq(priceUpdateLogs.id, id));
+    return log;
+  }
+
+  async createPriceUpdateLog(log: InsertPriceUpdateLog): Promise<PriceUpdateLog> {
+    const [created] = await db.insert(priceUpdateLogs).values(log).returning();
+    return created;
+  }
+
+  async updatePriceUpdateLog(id: number, updates: Partial<InsertPriceUpdateLog>): Promise<PriceUpdateLog> {
+    const [updated] = await db.update(priceUpdateLogs)
+      .set(updates)
+      .where(eq(priceUpdateLogs.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Obtener productos por código de proveedor
+  async getProductsBySupplierCode(supplierId: number): Promise<Product[]> {
+    return await db.select().from(products)
+      .where(and(
+        eq(products.supplierId, supplierId),
+        eq(products.isActive, true)
+      ));
+  }
+
+  async getProductBySupplierCode(supplierCode: string, supplierId: number): Promise<Product | undefined> {
+    const [product] = await db.select().from(products)
+      .where(and(
+        eq(products.supplierCode, supplierCode),
+        eq(products.supplierId, supplierId),
+        eq(products.isActive, true)
+      ));
+    return product;
   }
 }
 

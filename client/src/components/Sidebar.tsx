@@ -75,6 +75,7 @@ const menuGroups: MenuGroup[] = [
       { icon: Receipt, label: "Pedidos Compra", href: "/purchase-orders" },
       { icon: Truck, label: "Proveedores", href: "/suppliers" },
       { icon: DollarSign, label: "Lista Precios", href: "/price-lists" },
+      { icon: TrendingUp, label: "Actualizar Precios", href: "/price-update" },
       { icon: FileDown, label: "Importar Datos", href: "/import" },
       { icon: Tag, label: "Marcas & Rubros", href: "/brands-categories" },
     ]

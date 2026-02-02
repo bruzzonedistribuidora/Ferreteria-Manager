@@ -27,6 +27,7 @@ import {
 } from "@/pages/ComingSoon";
 import ImportData from "@/pages/ImportData";
 import BrandsCategories from "@/pages/BrandsCategories";
+import PriceUpdate from "@/pages/PriceUpdate";
 
 function PrivateRoute({ component: Component, ...rest }: any) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -99,6 +100,7 @@ function Router() {
       <Route path="/purchase-orders" component={PurchaseOrders} />
       <Route path="/suppliers" component={Suppliers} />
       <Route path="/price-lists" component={PriceLists} />
+      <Route path="/price-update" component={PriceUpdate} />
       <Route path="/import" component={ImportData} />
       <Route path="/brands-categories" component={BrandsCategories} />
       
