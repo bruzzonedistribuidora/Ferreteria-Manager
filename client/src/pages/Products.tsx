@@ -1,5 +1,5 @@
 import { Layout } from "@/components/Layout";
-import { useProducts, useCreateProduct, useDeleteProduct, useCategories } from "@/hooks/use-products";
+import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useCategories } from "@/hooks/use-products";
 import { useState, useEffect } from "react";
 import { 
   Table, 
@@ -20,33 +20,30 @@ import {
   DialogFooter,
   DialogDescription
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, Filter, Package, DollarSign, Warehouse, Layers, Globe, AlertTriangle } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Filter, Package, DollarSign, Warehouse, Layers, Globe, AlertTriangle, ShoppingCart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertProductSchema, type Brand, type Supplier, type Warehouse as WarehouseType } from "@shared/schema";
+import { insertProductSchema, type Brand, type Supplier, type Warehouse as WarehouseType, type Product } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function Products() {
   const [search, setSearch] = useState("");
   const { data: products, isLoading } = useProducts({ search });
   const { data: categories } = useCategories();
+  const { data: brands } = useQuery<Brand[]>({ queryKey: ['/api/brands'] });
   const { mutate: deleteProduct } = useDeleteProduct();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
 
   const handleDelete = (id: number) => {
     if (confirm("¿Estás seguro de que deseas eliminar este producto?")) {
@@ -55,6 +52,19 @@ export default function Products() {
         onError: () => toast({ title: "Error al eliminar", variant: "destructive" }),
       });
     }
+  };
+
+  const handleRequestOrder = (product: Product) => {
+    toast({ 
+      title: "Pedido de reposición", 
+      description: `Se agregó "${product.name}" a la lista de pedidos de compra.` 
+    });
+  };
+
+  const getBrandName = (brandId: number | null | undefined) => {
+    if (!brandId || !brands) return "-";
+    const brand = brands.find(b => b.id === brandId);
+    return brand?.name || "-";
   };
 
   return (
@@ -104,87 +114,153 @@ export default function Products() {
           <Table>
             <TableHeader className="bg-slate-50">
               <TableRow>
-                <TableHead className="w-[100px]">Código</TableHead>
-                <TableHead>Nombre del Producto</TableHead>
-                <TableHead>Categoría</TableHead>
-                <TableHead className="text-right">Precio</TableHead>
-                <TableHead className="text-center">Stock</TableHead>
-                <TableHead className="text-center">Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead className="w-[120px]">Código</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead className="w-[120px]">Marca</TableHead>
+                <TableHead className="text-center w-[100px]">Stock</TableHead>
+                <TableHead className="text-right w-[120px]">Precio</TableHead>
+                <TableHead className="text-center w-[180px]">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                     Cargando inventario...
                   </TableCell>
                 </TableRow>
               ) : products?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                     No se encontraron productos. Agrega uno para comenzar.
                   </TableCell>
                 </TableRow>
               ) : (
-                products?.map((product) => (
-                  <TableRow key={product.id} className="hover:bg-slate-50/50" data-testid={`row-product-${product.id}`}>
-                    <TableCell className="font-mono text-xs">{product.sku}</TableCell>
-                    <TableCell className="font-medium text-slate-900">{product.name}</TableCell>
-                    <TableCell>
-                      {categories?.find(c => c.id === product.categoryId)?.name || "-"}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      ${Number(product.price).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge 
-                        variant="secondary"
-                        className={
-                          product.stockQuantity <= (product.minStockLevel || 5)
-                            ? "bg-red-100 text-red-700 hover:bg-red-200"
-                            : "bg-green-100 text-green-700 hover:bg-green-200"
-                        }
-                      >
-                        {product.stockQuantity} unidades
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span className={`inline-block w-2 h-2 rounded-full ${product.isActive ? 'bg-green-500' : 'bg-slate-300'}`} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0 text-slate-400 hover:text-orange-600" data-testid={`button-actions-${product.id}`}>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="cursor-pointer">
-                            <Pencil className="mr-2 h-4 w-4" /> Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-red-600 cursor-pointer focus:text-red-600"
-                            onClick={() => handleDelete(product.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" /> Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                products?.map((product) => {
+                  const isLowStock = product.stockQuantity <= (product.minStockLevel || 5);
+                  return (
+                    <TableRow 
+                      key={product.id} 
+                      className={`hover:bg-slate-50/50 ${isLowStock ? 'bg-red-50/50' : ''}`} 
+                      data-testid={`row-product-${product.id}`}
+                    >
+                      <TableCell className="font-mono text-xs font-medium text-slate-700">
+                        {product.sku}
+                        {product.barcode && (
+                          <div className="text-[10px] text-slate-400">{product.barcode}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium text-slate-900">{product.name}</div>
+                        {product.description && (
+                          <div className="text-xs text-slate-500 truncate max-w-[300px]">{product.description}</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-slate-600">
+                        {getBrandName(product.brandId)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge 
+                          variant="secondary"
+                          className={
+                            isLowStock
+                              ? "bg-red-100 text-red-700 hover:bg-red-200"
+                              : "bg-green-100 text-green-700 hover:bg-green-200"
+                          }
+                        >
+                          {product.stockQuantity}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-slate-900">
+                        ${Number(product.priceWithTax || product.price).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => setEditProduct(product)}
+                                data-testid={`button-edit-${product.id}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Editar producto</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                onClick={() => handleRequestOrder(product)}
+                                data-testid={`button-order-${product.id}`}
+                              >
+                                <ShoppingCart className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Pedir reposición</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleDelete(product.id)}
+                                data-testid={`button-delete-${product.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Eliminar producto</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </div>
+
+        {/* Diálogo de edición */}
+        <Dialog open={!!editProduct} onOpenChange={(open) => !open && setEditProduct(null)}>
+          <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Editar Producto</DialogTitle>
+              <DialogDescription>Modifique los datos del producto.</DialogDescription>
+            </DialogHeader>
+            {editProduct && (
+              <ProductForm 
+                categories={categories || []} 
+                onSuccess={() => setEditProduct(null)}
+                editingProduct={editProduct}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
 }
 
-function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: () => void }) {
-  const { mutate, isPending } = useCreateProduct();
+interface ProductFormProps {
+  categories: any[];
+  onSuccess: () => void;
+  editingProduct?: Product | null;
+}
+
+function ProductForm({ categories, onSuccess, editingProduct }: ProductFormProps) {
+  const isEditing = !!editingProduct;
+  const { mutate: createProduct, isPending: isCreating } = useCreateProduct();
+  const { mutate: updateProduct, isPending: isUpdating } = useUpdateProduct();
+  const isPending = isCreating || isUpdating;
+  
   const { data: locations = [] } = useQuery<any[]>({ queryKey: ['/api/stock-locations'] });
   const { data: brands = [] } = useQuery<Brand[]>({ queryKey: ['/api/brands'] });
   const { data: suppliers = [] } = useQuery<Supplier[]>({ queryKey: ['/api/suppliers'] });
@@ -192,9 +268,55 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
   
   const [activeTab, setActiveTab] = useState("general");
   
-  const form = useForm<z.infer<typeof insertProductSchema>>({
-    resolver: zodResolver(insertProductSchema),
-    defaultValues: {
+  const getDefaultValues = () => {
+    if (editingProduct) {
+      return {
+        name: editingProduct.name || "",
+        sku: editingProduct.sku || "",
+        description: editingProduct.description || "",
+        barcode: editingProduct.barcode || "",
+        additionalCode1: editingProduct.additionalCode1 || "",
+        additionalCode2: editingProduct.additionalCode2 || "",
+        additionalCode3: editingProduct.additionalCode3 || "",
+        additionalCode4: editingProduct.additionalCode4 || "",
+        categoryId: editingProduct.categoryId,
+        brandId: editingProduct.brandId,
+        supplierId: editingProduct.supplierId,
+        supplierCode: editingProduct.supplierCode || "",
+        stockUnit: editingProduct.stockUnit || "unidad",
+        saleUnit: editingProduct.saleUnit || "unidad",
+        purchaseCurrency: editingProduct.purchaseCurrency || "ARS",
+        saleCurrency: editingProduct.saleCurrency || "ARS",
+        listCostNoTax: editingProduct.listCostNoTax || "0",
+        bulkQuantity: editingProduct.bulkQuantity || 1,
+        unitCost: editingProduct.unitCost || "0",
+        costNoTax: editingProduct.costNoTax || "0",
+        costWithTax: editingProduct.costWithTax || "0",
+        costUsd: editingProduct.costUsd || "0",
+        supplierDiscount1: editingProduct.supplierDiscount1 || "0",
+        supplierDiscount2: editingProduct.supplierDiscount2 || "0",
+        supplierDiscount3: editingProduct.supplierDiscount3 || "0",
+        supplierDiscount4: editingProduct.supplierDiscount4 || "0",
+        applySupplierDiscounts: editingProduct.applySupplierDiscounts || false,
+        profitPercent: editingProduct.profitPercent || "60",
+        priceNoTax: editingProduct.priceNoTax || "0",
+        priceWithTax: editingProduct.priceWithTax || "0",
+        priceUsd: editingProduct.priceUsd || "0",
+        taxPercent: editingProduct.taxPercent || "21",
+        price: editingProduct.price || "0",
+        stockQuantity: editingProduct.stockQuantity || 0,
+        minStockLevel: editingProduct.minStockLevel || 5,
+        reorderPoint: editingProduct.reorderPoint || 10,
+        maxStockLevel: editingProduct.maxStockLevel || 100,
+        locationId: editingProduct.locationId,
+        allowFractional: editingProduct.allowFractional || false,
+        fractionalUnit: editingProduct.fractionalUnit || "",
+        fractionalRatio: editingProduct.fractionalRatio || "1",
+        publishOnline: editingProduct.publishOnline || false,
+        isActive: editingProduct.isActive ?? true,
+      };
+    }
+    return {
       name: "",
       sku: "",
       additionalCode1: "",
@@ -229,7 +351,12 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
       allowFractional: false,
       publishOnline: false,
       isActive: true,
-    },
+    };
+  };
+  
+  const form = useForm<z.infer<typeof insertProductSchema>>({
+    resolver: zodResolver(insertProductSchema),
+    defaultValues: getDefaultValues(),
   });
 
   const listCostNoTax = parseFloat(form.watch("listCostNoTax") || "0");
@@ -266,15 +393,27 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
   }, [listCostNoTax, bulkQuantity, profitPercent, taxPercent, supplierDiscount1, supplierDiscount2, supplierDiscount3, supplierDiscount4, applySupplierDiscounts, form]);
 
   const onSubmit = (data: z.infer<typeof insertProductSchema>) => {
-    mutate(data, {
-      onSuccess: () => {
-        toast({ title: "Producto creado exitosamente" });
-        onSuccess();
-      },
-      onError: (err) => {
-        toast({ title: "Error al crear producto", description: err.message, variant: "destructive" });
-      }
-    });
+    if (isEditing && editingProduct) {
+      updateProduct({ id: editingProduct.id, ...data }, {
+        onSuccess: () => {
+          toast({ title: "Producto actualizado exitosamente" });
+          onSuccess();
+        },
+        onError: (err) => {
+          toast({ title: "Error al actualizar producto", description: err.message, variant: "destructive" });
+        }
+      });
+    } else {
+      createProduct(data, {
+        onSuccess: () => {
+          toast({ title: "Producto creado exitosamente" });
+          onSuccess();
+        },
+        onError: (err) => {
+          toast({ title: "Error al crear producto", description: err.message, variant: "destructive" });
+        }
+      });
+    }
   };
 
   const unitOptions = [
@@ -1149,7 +1288,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
 
         <DialogFooter className="pt-4 border-t mt-4">
           <Button type="submit" disabled={isPending} className="bg-green-600 hover:bg-green-700" data-testid="button-save-product">
-            {isPending ? "Guardando..." : "Guardar"}
+            {isPending ? "Guardando..." : (isEditing ? "Actualizar" : "Guardar")}
           </Button>
         </DialogFooter>
       </form>
