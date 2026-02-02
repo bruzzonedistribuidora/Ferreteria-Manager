@@ -3,7 +3,7 @@ import { useProducts } from "@/hooks/use-products";
 import { useClients } from "@/hooks/use-clients";
 import { useCreateSale } from "@/hooks/use-sales";
 import { useState, useMemo } from "react";
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, User, Check, Loader2 } from "lucide-react";
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, User, Check, Loader2, Banknote, ArrowRightLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,7 +51,6 @@ export default function Pos() {
     return products.filter(p => {
       const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || 
                             p.sku.toLowerCase().includes(search.toLowerCase());
-      // Assuming we had category info here, skipping specific category filter logic for brevity unless data is enriched
       return matchesSearch && p.isActive;
     });
   }, [products, search]);
@@ -59,8 +58,8 @@ export default function Pos() {
   const addToCart = (product: any) => {
     if (product.stockQuantity <= 0) {
       toast({
-        title: "Out of Stock",
-        description: "This item is currently unavailable.",
+        title: "Sin Stock",
+        description: "Este artículo no está disponible actualmente.",
         variant: "destructive",
       });
       return;
@@ -71,8 +70,8 @@ export default function Pos() {
       if (existing) {
         if (existing.quantity >= product.stockQuantity) {
           toast({
-            title: "Max Stock Reached",
-            description: `Only ${product.stockQuantity} available.`,
+            title: "Stock Máximo Alcanzado",
+            description: `Solo hay ${product.stockQuantity} disponibles.`,
             variant: "destructive",
           });
           return prev;
@@ -99,7 +98,7 @@ export default function Pos() {
         const newQty = item.quantity + delta;
         if (newQty <= 0) return item;
         if (newQty > item.maxStock) {
-          toast({ title: "Max Stock Reached", variant: "destructive" });
+          toast({ title: "Stock Máximo Alcanzado", variant: "destructive" });
           return item;
         }
         return { ...item, quantity: newQty };
@@ -126,8 +125,8 @@ export default function Pos() {
     }, {
       onSuccess: () => {
         toast({
-          title: "Sale Completed",
-          description: `Receipt #${Date.now().toString().slice(-6)} generated successfully.`,
+          title: "Venta Completada",
+          description: `Ticket generado exitosamente.`,
         });
         setCart([]);
         setIsCheckoutOpen(false);
@@ -136,7 +135,7 @@ export default function Pos() {
       },
       onError: (err) => {
         toast({
-          title: "Transaction Failed",
+          title: "Error en la Transacción",
           description: err.message,
           variant: "destructive",
         });
@@ -148,19 +147,18 @@ export default function Pos() {
     <Layout>
       <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-6">
         
-        {/* Left: Product Grid */}
+        {/* Izquierda: Grilla de Productos */}
         <div className="flex-1 flex flex-col min-w-0 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input 
                 className="pl-10 border-slate-200 bg-slate-50 focus-visible:ring-orange-500" 
-                placeholder="Search products by name or SKU..." 
+                placeholder="Buscar productos por nombre o código..." 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            {/* Category Filter could go here */}
           </div>
 
           <ScrollArea className="flex-1 p-4 bg-slate-50/50">
@@ -183,11 +181,11 @@ export default function Pos() {
                         <PackagePlaceholder />
                       )}
                       {product.stockQuantity <= 5 && product.stockQuantity > 0 && (
-                        <Badge className="absolute top-2 right-2 bg-orange-500">Low Stock</Badge>
+                        <Badge className="absolute top-2 right-2 bg-orange-500">Stock Bajo</Badge>
                       )}
                       {product.stockQuantity === 0 && (
                         <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center backdrop-blur-[1px]">
-                          <span className="text-white font-bold text-sm uppercase tracking-wider">Out of Stock</span>
+                          <span className="text-white font-bold text-sm uppercase tracking-wider">Sin Stock</span>
                         </div>
                       )}
                     </div>
@@ -195,7 +193,7 @@ export default function Pos() {
                       <h3 className="font-medium text-slate-900 truncate" title={product.name}>{product.name}</h3>
                       <div className="flex items-center justify-between mt-1">
                         <span className="font-bold text-lg text-slate-900">${Number(product.price).toFixed(2)}</span>
-                        <span className="text-xs text-slate-500">{product.stockQuantity} in stock</span>
+                        <span className="text-xs text-slate-500">{product.stockQuantity} en stock</span>
                       </div>
                     </div>
                   </Card>
@@ -205,15 +203,15 @@ export default function Pos() {
           </ScrollArea>
         </div>
 
-        {/* Right: Cart */}
+        {/* Derecha: Carrito */}
         <div className="w-full lg:w-[400px] bg-white rounded-2xl shadow-xl border border-slate-200 flex flex-col overflow-hidden">
           <div className="p-4 bg-slate-900 text-white flex justify-between items-center shadow-md">
             <div className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-orange-500" />
-              <h2 className="font-semibold text-lg">Current Sale</h2>
+              <h2 className="font-semibold text-lg">Venta Actual</h2>
             </div>
             <Badge variant="outline" className="text-orange-500 border-orange-500/50">
-              {cart.length} Items
+              {cart.length} Artículos
             </Badge>
           </div>
 
@@ -222,11 +220,11 @@ export default function Pos() {
               <SelectTrigger className="bg-white border-slate-200">
                 <div className="flex items-center gap-2 text-slate-700">
                   <User className="h-4 w-4 text-slate-400" />
-                  <SelectValue placeholder="Select Client" />
+                  <SelectValue placeholder="Seleccionar Cliente" />
                 </div>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="walk-in">Walk-in Client</SelectItem>
+                <SelectItem value="walk-in">Cliente Ocasional</SelectItem>
                 {clients?.map(client => (
                   <SelectItem key={client.id} value={String(client.id)}>{client.name}</SelectItem>
                 ))}
@@ -239,7 +237,7 @@ export default function Pos() {
               {cart.length === 0 ? (
                 <div className="h-40 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl m-2">
                   <ShoppingCart className="h-8 w-8 mb-2 opacity-50" />
-                  <p>Cart is empty</p>
+                  <p>El carrito está vacío</p>
                 </div>
               ) : (
                 cart.map(item => (
@@ -279,7 +277,7 @@ export default function Pos() {
 
           <div className="p-6 bg-slate-50 border-t border-slate-200">
             <div className="flex justify-between items-center mb-4">
-              <span className="text-slate-500 font-medium">Total Amount</span>
+              <span className="text-slate-500 font-medium">Total a Pagar</span>
               <span className="text-3xl font-bold text-slate-900">${total.toFixed(2)}</span>
             </div>
             
@@ -289,51 +287,53 @@ export default function Pos() {
                   className="w-full h-12 text-lg font-semibold bg-orange-600 hover:bg-orange-700 shadow-lg shadow-orange-500/20"
                   disabled={cart.length === 0}
                 >
-                  Proceed to Payment
+                  Cobrar
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Confirm Payment</DialogTitle>
+                  <DialogTitle>Confirmar Pago</DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-slate-700">Payment Method</label>
+                    <label className="text-sm font-medium text-slate-700">Método de Pago</label>
                     <div className="grid grid-cols-3 gap-3">
-                      {['cash', 'card', 'transfer'].map((method) => (
+                      {[
+                        { key: 'cash', label: 'Efectivo', icon: Banknote },
+                        { key: 'card', label: 'Tarjeta', icon: CreditCard },
+                        { key: 'transfer', label: 'Transferencia', icon: ArrowRightLeft }
+                      ].map((method) => (
                         <div 
-                          key={method}
-                          onClick={() => setPaymentMethod(method)}
+                          key={method.key}
+                          onClick={() => setPaymentMethod(method.key)}
                           className={`
                             cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-2 transition-all
-                            ${paymentMethod === method 
+                            ${paymentMethod === method.key 
                               ? 'border-orange-500 bg-orange-50 text-orange-700' 
                               : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'}
                           `}
                         >
-                          {method === 'cash' && <span className="text-2xl">$</span>}
-                          {method === 'card' && <CreditCard className="h-6 w-6" />}
-                          {method === 'transfer' && <div className="text-xl font-bold">⇄</div>}
-                          <span className="capitalize text-sm font-medium">{method}</span>
+                          <method.icon className="h-6 w-6" />
+                          <span className="text-sm font-medium">{method.label}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                   
                   <div className="bg-slate-100 p-4 rounded-xl flex justify-between items-center mt-2">
-                    <span className="font-medium text-slate-600">Total to Pay</span>
+                    <span className="font-medium text-slate-600">Total a Cobrar</span>
                     <span className="text-2xl font-bold text-slate-900">${total.toFixed(2)}</span>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCheckoutOpen(false)}>Cancel</Button>
+                  <Button variant="outline" onClick={() => setIsCheckoutOpen(false)}>Cancelar</Button>
                   <Button 
                     onClick={handleCheckout} 
                     disabled={isProcessing}
                     className="bg-orange-600 hover:bg-orange-700 min-w-[120px]"
                   >
                     {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                    Confirm Sale
+                    Confirmar Venta
                   </Button>
                 </DialogFooter>
               </DialogContent>

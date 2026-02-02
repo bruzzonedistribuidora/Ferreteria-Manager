@@ -4,8 +4,8 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "./models/auth";
 
-// Export users from auth model so it's available
-export { users } from "./models/auth";
+// Export all auth models (users and sessions)
+export * from "./models/auth";
 
 // === PRODUCTS ===
 export const categories = pgTable("categories", {

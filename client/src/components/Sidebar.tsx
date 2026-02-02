@@ -4,11 +4,11 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-  { icon: ShoppingCart, label: "Point of Sale", href: "/pos" },
-  { icon: Package, label: "Products", href: "/products" },
-  { icon: Users, label: "Clients", href: "/clients" },
-  { icon: Receipt, label: "Sales History", href: "/sales" },
+  { icon: LayoutDashboard, label: "Panel Principal", href: "/" },
+  { icon: ShoppingCart, label: "Punto de Venta", href: "/pos" },
+  { icon: Package, label: "Productos", href: "/products" },
+  { icon: Users, label: "Clientes", href: "/clients" },
+  { icon: Receipt, label: "Historial de Ventas", href: "/sales" },
 ];
 
 export function Sidebar() {
@@ -60,7 +60,7 @@ export function Sidebar() {
           className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-slate-400 hover:bg-red-500/10 hover:text-red-500 transition-all duration-200"
         >
           <LogOut className="h-5 w-5" />
-          Sign Out
+          Cerrar Sesión
         </button>
       </div>
     </aside>

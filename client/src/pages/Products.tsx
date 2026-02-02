@@ -43,10 +43,10 @@ export default function Products() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this product?")) {
+    if (confirm("¿Estás seguro de que deseas eliminar este producto?")) {
       deleteProduct(id, {
-        onSuccess: () => toast({ title: "Product deleted" }),
-        onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+        onSuccess: () => toast({ title: "Producto eliminado" }),
+        onError: () => toast({ title: "Error al eliminar", variant: "destructive" }),
       });
     }
   };
@@ -56,18 +56,18 @@ export default function Products() {
       <div className="flex flex-col space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Inventory</h1>
-            <p className="text-slate-500">Manage your products, stock levels, and prices.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Inventario</h1>
+            <p className="text-slate-500">Administra tus productos, stock y precios.</p>
           </div>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button className="bg-orange-600 hover:bg-orange-700 shadow-lg shadow-orange-500/20">
-                <Plus className="mr-2 h-4 w-4" /> Add Product
+                <Plus className="mr-2 h-4 w-4" /> Agregar Producto
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>Add New Product</DialogTitle>
+                <DialogTitle>Nuevo Producto</DialogTitle>
               </DialogHeader>
               <ProductForm 
                 categories={categories || []} 
@@ -81,14 +81,14 @@ export default function Products() {
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input 
-              placeholder="Search products..." 
+              placeholder="Buscar productos..." 
               className="pl-10 border-slate-200"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <Button variant="outline" className="border-slate-200 text-slate-600">
-            <Filter className="mr-2 h-4 w-4" /> Filters
+            <Filter className="mr-2 h-4 w-4" /> Filtros
           </Button>
         </div>
 
@@ -96,26 +96,26 @@ export default function Products() {
           <Table>
             <TableHeader className="bg-slate-50">
               <TableRow>
-                <TableHead className="w-[100px]">SKU</TableHead>
-                <TableHead>Product Name</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Price</TableHead>
+                <TableHead className="w-[100px]">Código</TableHead>
+                <TableHead>Nombre del Producto</TableHead>
+                <TableHead>Categoría</TableHead>
+                <TableHead className="text-right">Precio</TableHead>
                 <TableHead className="text-center">Stock</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-center">Estado</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                    Loading inventory...
+                    Cargando inventario...
                   </TableCell>
                 </TableRow>
               ) : products?.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                    No products found. Add one to get started.
+                    No se encontraron productos. Agrega uno para comenzar.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -138,7 +138,7 @@ export default function Products() {
                             : "bg-green-100 text-green-700 hover:bg-green-200"
                         }
                       >
-                        {product.stockQuantity} units
+                        {product.stockQuantity} unidades
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
@@ -153,13 +153,13 @@ export default function Products() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem className="cursor-pointer">
-                            <Pencil className="mr-2 h-4 w-4" /> Edit Details
+                            <Pencil className="mr-2 h-4 w-4" /> Editar
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             className="text-red-600 cursor-pointer focus:text-red-600"
                             onClick={() => handleDelete(product.id)}
                           >
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete Product
+                            <Trash2 className="mr-2 h-4 w-4" /> Eliminar
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -193,11 +193,11 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
   const onSubmit = (data: z.infer<typeof insertProductSchema>) => {
     mutate(data, {
       onSuccess: () => {
-        toast({ title: "Product created successfully" });
+        toast({ title: "Producto creado exitosamente" });
         onSuccess();
       },
       onError: (err) => {
-        toast({ title: "Failed to create product", description: err.message, variant: "destructive" });
+        toast({ title: "Error al crear producto", description: err.message, variant: "destructive" });
       }
     });
   };
@@ -211,9 +211,9 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
             name="name"
             render={({ field }) => (
               <FormItem className="col-span-2">
-                <FormLabel>Product Name</FormLabel>
+                <FormLabel>Nombre del Producto</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g. Cordless Drill" {...field} />
+                  <Input placeholder="ej. Taladro Inalámbrico" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -224,7 +224,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
             name="sku"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>SKU</FormLabel>
+                <FormLabel>Código (SKU)</FormLabel>
                 <FormControl>
                   <Input placeholder="PROD-001" {...field} />
                 </FormControl>
@@ -237,14 +237,14 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
             name="categoryId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Category</FormLabel>
+                <FormLabel>Categoría</FormLabel>
                 <Select 
                   onValueChange={(val) => field.onChange(Number(val))}
                   value={field.value?.toString()}
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue placeholder="Seleccionar categoría" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -262,7 +262,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
             name="price"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Price ($)</FormLabel>
+                <FormLabel>Precio ($)</FormLabel>
                 <FormControl>
                   <Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
                 </FormControl>
@@ -275,7 +275,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
             name="stockQuantity"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Initial Stock</FormLabel>
+                <FormLabel>Stock Inicial</FormLabel>
                 <FormControl>
                   <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
                 </FormControl>
@@ -286,7 +286,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
         </div>
         <DialogFooter className="pt-4">
           <Button type="submit" disabled={isPending} className="bg-orange-600 hover:bg-orange-700">
-            {isPending ? "Creating..." : "Save Product"}
+            {isPending ? "Guardando..." : "Guardar Producto"}
           </Button>
         </DialogFooter>
       </form>

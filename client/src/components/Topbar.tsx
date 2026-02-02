@@ -21,7 +21,7 @@ export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
 
   const userName = user 
     ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email 
-    : 'User';
+    : 'Usuario';
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b bg-white/80 backdrop-blur-md px-6 shadow-sm">
@@ -33,7 +33,7 @@ export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
           <Search className="h-4 w-4" />
           <input 
             className="bg-transparent border-none outline-none text-sm w-full placeholder:text-slate-400" 
-            placeholder="Global search..." 
+            placeholder="Buscar..." 
           />
         </div>
       </div>
@@ -48,7 +48,7 @@ export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
               <Avatar className="h-10 w-10 border-2 border-white shadow-sm cursor-pointer hover:scale-105 transition-transform">
-                <AvatarImage src={user?.profileImageUrl || undefined} alt={userName || "User"} />
+                <AvatarImage src={user?.profileImageUrl || undefined} alt={userName || "Usuario"} />
                 <AvatarFallback className="bg-orange-100 text-orange-600 font-bold">
                   {userInitials}
                 </AvatarFallback>
@@ -66,7 +66,7 @@ export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => logout()} className="text-red-600 focus:text-red-600 cursor-pointer">
-              Log out
+              Cerrar sesión
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

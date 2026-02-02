@@ -23,18 +23,18 @@ export default function Clients() {
       <div className="flex flex-col space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Clients</h1>
-            <p className="text-slate-500">Manage your customer database.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Clientes</h1>
+            <p className="text-slate-500">Administra tu base de datos de clientes.</p>
           </div>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button className="bg-orange-600 hover:bg-orange-700 shadow-lg shadow-orange-500/20">
-                <Plus className="mr-2 h-4 w-4" /> Add Client
+                <Plus className="mr-2 h-4 w-4" /> Agregar Cliente
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add New Client</DialogTitle>
+                <DialogTitle>Nuevo Cliente</DialogTitle>
               </DialogHeader>
               <ClientForm onSuccess={() => setIsCreateOpen(false)} />
             </DialogContent>
@@ -45,7 +45,7 @@ export default function Clients() {
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input 
-              placeholder="Search clients..." 
+              placeholder="Buscar clientes..." 
               className="pl-10 border-slate-200"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -55,7 +55,7 @@ export default function Clients() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isLoading ? (
-            <div className="col-span-full text-center py-10 text-muted-foreground">Loading clients...</div>
+            <div className="col-span-full text-center py-10 text-muted-foreground">Cargando clientes...</div>
           ) : clients?.map(client => (
             <div key={client.id} className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between">
@@ -91,7 +91,7 @@ export default function Clients() {
               
               <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
                 <Button variant="ghost" size="sm" className="text-slate-500 hover:text-orange-600">
-                  View History
+                  Ver Historial
                 </Button>
               </div>
             </div>
@@ -119,10 +119,10 @@ function ClientForm({ onSuccess }: { onSuccess: () => void }) {
   const onSubmit = (data: z.infer<typeof insertClientSchema>) => {
     mutate(data, {
       onSuccess: () => {
-        toast({ title: "Client created" });
+        toast({ title: "Cliente creado" });
         onSuccess();
       },
-      onError: () => toast({ title: "Failed", variant: "destructive" })
+      onError: () => toast({ title: "Error", variant: "destructive" })
     });
   };
 
@@ -134,7 +134,7 @@ function ClientForm({ onSuccess }: { onSuccess: () => void }) {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Full Name</FormLabel>
+              <FormLabel>Nombre Completo</FormLabel>
               <FormControl><Input {...field} /></FormControl>
               <FormMessage />
             </FormItem>
@@ -157,7 +157,7 @@ function ClientForm({ onSuccess }: { onSuccess: () => void }) {
             name="phone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Phone</FormLabel>
+                <FormLabel>Teléfono</FormLabel>
                 <FormControl><Input {...field} value={field.value || ""} /></FormControl>
                 <FormMessage />
               </FormItem>
@@ -169,15 +169,26 @@ function ClientForm({ onSuccess }: { onSuccess: () => void }) {
           name="address"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Address</FormLabel>
+              <FormLabel>Dirección</FormLabel>
               <FormControl><Input {...field} value={field.value || ""} /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="taxId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>CUIT/CUIL/DNI</FormLabel>
+              <FormControl><Input {...field} value={field.value || ""} placeholder="20-12345678-9" /></FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
         <DialogFooter className="pt-4">
           <Button type="submit" disabled={isPending} className="bg-orange-600 hover:bg-orange-700">
-            {isPending ? "Creating..." : "Save Client"}
+            {isPending ? "Guardando..." : "Guardar Cliente"}
           </Button>
         </DialogFooter>
       </form>

@@ -5,6 +5,7 @@ import { DollarSign, ShoppingBag, AlertTriangle, Package, TrendingUp } from "luc
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
@@ -24,51 +25,51 @@ export default function Dashboard() {
   }
 
   const chartData = [
-    { name: 'Mon', sales: 4000 },
-    { name: 'Tue', sales: 3000 },
-    { name: 'Wed', sales: 2000 },
-    { name: 'Thu', sales: 2780 },
-    { name: 'Fri', sales: 1890 },
-    { name: 'Sat', sales: 2390 },
-    { name: 'Sun', sales: 3490 },
+    { name: 'Lun', sales: 4000 },
+    { name: 'Mar', sales: 3000 },
+    { name: 'Mié', sales: 2000 },
+    { name: 'Jue', sales: 2780 },
+    { name: 'Vie', sales: 1890 },
+    { name: 'Sáb', sales: 2390 },
+    { name: 'Dom', sales: 3490 },
   ];
 
   return (
     <Layout>
       <div className="flex flex-col space-y-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
-          <p className="text-slate-500">Overview of your store's performance today.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Panel Principal</h1>
+          <p className="text-slate-500">Resumen del rendimiento de tu ferretería hoy.</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <StatsCard
-            title="Total Revenue"
-            value={`$${stats?.revenueToday ? Number(stats.revenueToday).toLocaleString() : '0.00'}`}
-            description="Revenue generated today"
+            title="Ingresos del Día"
+            value={`$${stats?.revenueToday ? Number(stats.revenueToday).toLocaleString('es-AR') : '0,00'}`}
+            description="Facturación de hoy"
             icon={DollarSign}
             variant="default"
             trend="up"
             trendValue="12%"
           />
           <StatsCard
-            title="Sales Today"
+            title="Ventas Hoy"
             value={stats?.totalSalesToday || 0}
-            description="Total transactions"
+            description="Total de transacciones"
             icon={ShoppingBag}
             variant="orange"
           />
           <StatsCard
-            title="Total Products"
+            title="Total Productos"
             value={stats?.totalProducts || 0}
-            description="Active inventory items"
+            description="Artículos en inventario"
             icon={Package}
             variant="blue"
           />
           <StatsCard
-            title="Low Stock"
+            title="Stock Bajo"
             value={stats?.lowStockCount || 0}
-            description="Items needing restock"
+            description="Productos a reponer"
             icon={AlertTriangle}
             variant="default"
             className={stats?.lowStockCount > 0 ? "border-red-200 bg-red-50" : ""}
@@ -78,7 +79,7 @@ export default function Dashboard() {
         <div className="grid gap-6 md:grid-cols-7">
           <Card className="col-span-4 shadow-md border-border/50">
             <CardHeader>
-              <CardTitle>Revenue Overview</CardTitle>
+              <CardTitle>Resumen de Ingresos</CardTitle>
             </CardHeader>
             <CardContent className="pl-2">
               <div className="h-[300px]">
@@ -106,7 +107,7 @@ export default function Dashboard() {
 
           <Card className="col-span-3 shadow-md border-border/50">
             <CardHeader>
-              <CardTitle>Recent Sales</CardTitle>
+              <CardTitle>Ventas Recientes</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
@@ -119,10 +120,10 @@ export default function Dashboard() {
                         </div>
                         <div className="space-y-1">
                           <p className="text-sm font-medium leading-none">
-                            {sale.client?.name || "Walk-in Client"}
+                            {sale.client?.name || "Cliente Ocasional"}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {format(new Date(sale.createdAt), "HH:mm")} • {sale.paymentMethod}
+                            {format(new Date(sale.createdAt), "HH:mm", { locale: es })} • {sale.paymentMethod === 'cash' ? 'Efectivo' : sale.paymentMethod === 'card' ? 'Tarjeta' : 'Transferencia'}
                           </p>
                         </div>
                       </div>
@@ -133,7 +134,7 @@ export default function Dashboard() {
                   ))
                 ) : (
                   <div className="text-center py-8 text-muted-foreground text-sm">
-                    No sales recorded today yet.
+                    No hay ventas registradas hoy todavía.
                   </div>
                 )}
               </div>

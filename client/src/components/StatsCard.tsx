@@ -46,8 +46,7 @@ export function StatsCard({
     )}>
       <CardContent className="p-6">
         <div className="flex items-center justify-between space-x-4">
-          <div className="flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-300 group-hover:scale-110 shadow-sm"
-               className={cn("p-3 rounded-xl", iconVariants[variant])}>
+          <div className={cn("p-3 rounded-xl", iconVariants[variant])}>
             <Icon className="w-6 h-6" />
           </div>
           {trend && (
