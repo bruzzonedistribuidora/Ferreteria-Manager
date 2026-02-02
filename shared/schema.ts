@@ -14,20 +14,97 @@ export const categories = pgTable("categories", {
   description: text("description"),
 });
 
+// === BRANDS (Marcas) ===
+export const brands = pgTable("brands", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === WAREHOUSES/BRANCHES (Depósitos/Sucursales) ===
+export const warehouses = pgTable("warehouses", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  address: text("address"),
+  phone: text("phone"),
+  isMain: boolean("is_main").default(false), // Depósito principal
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
+  // General
   sku: text("sku").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
+  additionalCode1: text("additional_code_1"), // Códigos adicionales
+  additionalCode2: text("additional_code_2"),
+  additionalCode3: text("additional_code_3"),
+  additionalCode4: text("additional_code_4"),
   categoryId: integer("category_id").references(() => categories.id),
-  price: numeric("price", { precision: 10, scale: 2 }).notNull(),
-  costPrice: numeric("cost_price", { precision: 10, scale: 2 }),
+  brandId: integer("brand_id").references(() => brands.id),
+  supplierId: integer("supplier_id"), // Proveedor principal (FK added via relations)
+  supplierCode: text("supplier_code"), // Código del proveedor
+  // Unidades
+  stockUnit: text("stock_unit").default("unidad"), // Unidad primaria (stock)
+  saleUnit: text("sale_unit").default("unidad"), // Unidad de venta
+  // Monedas
+  purchaseCurrency: text("purchase_currency").default("ARS"),
+  saleCurrency: text("sale_currency").default("ARS"),
+  // Costos y Precios
+  listCostNoTax: numeric("list_cost_no_tax", { precision: 12, scale: 2 }).default("0"), // Costo lista s/IVA
+  bulkQuantity: integer("bulk_quantity").default(1), // Cantidad por bulto
+  unitCost: numeric("unit_cost", { precision: 12, scale: 2 }).default("0"), // Costo unitario calculado
+  costNoTax: numeric("cost_no_tax", { precision: 12, scale: 2 }).default("0"), // Costo s/IVA
+  costWithTax: numeric("cost_with_tax", { precision: 12, scale: 2 }).default("0"), // Costo c/IVA
+  costUsd: numeric("cost_usd", { precision: 12, scale: 2 }).default("0"), // Costo en USD
+  // Descuentos del proveedor
+  supplierDiscount1: numeric("supplier_discount_1", { precision: 5, scale: 2 }).default("0"),
+  supplierDiscount2: numeric("supplier_discount_2", { precision: 5, scale: 2 }).default("0"),
+  supplierDiscount3: numeric("supplier_discount_3", { precision: 5, scale: 2 }).default("0"),
+  supplierDiscount4: numeric("supplier_discount_4", { precision: 5, scale: 2 }).default("0"),
+  applySupplierDiscounts: boolean("apply_supplier_discounts").default(false),
+  // Precios de venta
+  profitPercent: numeric("profit_percent", { precision: 5, scale: 2 }).default("60"), // % Ganancia
+  priceNoTax: numeric("price_no_tax", { precision: 12, scale: 2 }).default("0"), // Precio s/IVA
+  priceWithTax: numeric("price_with_tax", { precision: 12, scale: 2 }).default("0"), // Precio c/IVA
+  priceUsd: numeric("price_usd", { precision: 12, scale: 2 }).default("0"), // Precio en USD
+  taxPercent: numeric("tax_percent", { precision: 5, scale: 2 }).default("21"), // IVA %
+  price: numeric("price", { precision: 10, scale: 2 }).notNull(), // Precio final (legacy, mantener compatibilidad)
+  costPrice: numeric("cost_price", { precision: 10, scale: 2 }), // Legacy
+  // Inventario
   stockQuantity: integer("stock_quantity").notNull().default(0),
-  minStockLevel: integer("min_stock_level").default(5),
+  minStockLevel: integer("min_stock_level").default(5), // Mínimo de alerta
+  reorderPoint: integer("reorder_point").default(10), // Punto de pedido automático
   maxStockLevel: integer("max_stock_level").default(100),
   locationId: integer("location_id").references(() => stockLocations.id),
+  // Venta Fraccionada
+  allowFractional: boolean("allow_fractional").default(false), // Habilitar fraccionado
+  fractionalUnit: text("fractional_unit"), // Unidad fraccionada (ej: metro, gramo)
+  fractionalRatio: numeric("fractional_ratio", { precision: 10, scale: 4 }).default("1"), // Ratio conversión
+  // E-Commerce
+  publishOnline: boolean("publish_online").default(false),
+  // Meta
   imageUrl: text("image_url"),
   isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// === PRODUCT WAREHOUSE STOCK (Stock por depósito/sucursal) ===
+export const productWarehouseStock = pgTable("product_warehouse_stock", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id),
+  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
+  stockQuantity: integer("stock_quantity").notNull().default(0),
+  minStockLevel: integer("min_stock_level").default(0),
+  maxStockLevel: integer("max_stock_level").default(0),
+  locationCode: text("location_code"), // Ubicación dentro del depósito
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // === STOCK LOCATIONS (Ubicaciones en depósito) ===
@@ -385,7 +462,7 @@ export const supplierProductDiscountRelations = relations(supplierProductDiscoun
 
 // === ZOD SCHEMAS ===
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
-export const insertProductSchema = createInsertSchema(products).omit({ id: true });
+export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSaleSchema = createInsertSchema(sales).omit({ id: true, receiptNumber: true, userId: true, createdAt: true });
 export const insertSaleItemSchema = createInsertSchema(saleItems).omit({ id: true, saleId: true });
@@ -398,9 +475,15 @@ export const insertSupplierSchema = createInsertSchema(suppliers).omit({ id: tru
 export const insertSupplierMovementSchema = createInsertSchema(supplierAccountMovements).omit({ id: true, createdAt: true });
 export const insertSupplierDiscountSchema = createInsertSchema(supplierProductDiscounts).omit({ id: true, createdAt: true });
 export const insertSalePaymentSchema = createInsertSchema(salePayments).omit({ id: true, createdAt: true });
+export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true });
+export const insertWarehouseSchema = createInsertSchema(warehouses).omit({ id: true, createdAt: true });
+export const insertProductWarehouseStockSchema = createInsertSchema(productWarehouseStock).omit({ id: true, updatedAt: true });
 
 // === API TYPES ===
 export type Product = typeof products.$inferSelect;
+export type Brand = typeof brands.$inferSelect;
+export type Warehouse = typeof warehouses.$inferSelect;
+export type ProductWarehouseStock = typeof productWarehouseStock.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Client = typeof clients.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
@@ -422,6 +505,9 @@ export type InsertDeliveryNote = z.infer<typeof insertDeliveryNoteSchema>;
 export type InsertDeliveryNoteItem = z.infer<typeof insertDeliveryNoteItemSchema>;
 export type InsertAuthorizedContact = z.infer<typeof insertAuthorizedContactSchema>;
 export type InsertAccountMovement = z.infer<typeof insertAccountMovementSchema>;
+export type InsertBrand = z.infer<typeof insertBrandSchema>;
+export type InsertWarehouse = z.infer<typeof insertWarehouseSchema>;
+export type InsertProductWarehouseStock = z.infer<typeof insertProductWarehouseStockSchema>;
 
 // Custom Types for Frontend
 export type ProductWithCategory = Product & { category: Category | null };

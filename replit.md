@@ -5,11 +5,15 @@
 FerreCloud is a cloud-based ERP (Enterprise Resource Planning) system designed specifically for hardware stores (ferreterías). It provides comprehensive management of inventory, sales, clients, delivery notes (remitos), and pre-invoices. The application is built as a full-stack TypeScript monorepo with a React frontend and Express backend, using PostgreSQL for data persistence.
 
 Key features include:
-- **Point of Sale (POS)**: Real-time sales processing with cart management
-- **Product Management**: Inventory tracking with categories and stock levels
-- **Client Management**: Customer database with contact information
-- **Delivery Notes (Remitos)**: Track goods delivered to customers before invoicing
-- **Pre-Invoices**: Generate pre-invoices from pending delivery notes
+- **Point of Sale (POS)**: Real-time sales processing with cart management, mixed payments
+- **Product Management**: Complete inventory with cost structure, profit margins, multiple units, brands, suppliers, fractional selling, e-commerce flags
+- **Client Management**: Customer database with CUIT lookup, WhatsApp, authorized contacts, current accounts
+- **Supplier Management**: Suppliers with discounts, current accounts, payment terms
+- **Delivery Notes (Remitos)**: Track goods with folder system (pending/invoiced/voided)
+- **Pre-Invoices**: Generate pre-invoices from pending delivery notes with admin review
+- **Cash Registers**: Multiple registers, movements, sessions, check wallet with alerts
+- **Stock Management**: Locations, movements, alerts by min/max levels, multi-warehouse stock
+- **Payment Methods**: Configurable methods, cards with installment plans and surcharges
 - **Dashboard Analytics**: Real-time business metrics and charts
 
 ## User Preferences
@@ -37,7 +41,7 @@ Preferred communication style: Simple, everyday language.
 - **Database**: PostgreSQL with Drizzle ORM
 - **Schema Location**: `shared/schema.ts` contains all table definitions
 - **Migrations**: Drizzle Kit for database migrations (`drizzle-kit push`)
-- **Key Tables**: users, sessions, products, categories, clients, sales, sale_items, delivery_notes, delivery_note_items, pre_invoices
+- **Key Tables**: users, sessions, products, categories, brands, warehouses, product_warehouse_stock, clients, sales, sale_items, delivery_notes, delivery_note_items, pre_invoices, stock_locations, stock_movements, suppliers, payment_methods, card_configurations, cash_registers, checks_wallet
 
 ### Project Structure
 ```

@@ -837,6 +837,8 @@ export async function registerRoutes(
   // === Cash Registers Routes ===
   await storage.seedDefaultCashRegister();
   await storage.seedDefaultStockLocations();
+  await storage.seedDefaultBrands();
+  await storage.seedDefaultWarehouses();
 
   app.get("/api/cash-registers", isAuthenticated, async (req, res) => {
     const registers = await storage.getCashRegisters();
@@ -1216,6 +1218,116 @@ export async function registerRoutes(
   app.get("/api/stock/alerts", isAuthenticated, async (req, res) => {
     const alerts = await storage.getStockAlerts();
     res.json(alerts);
+  });
+
+  // === BRANDS ROUTES ===
+  app.get("/api/brands", isAuthenticated, async (req, res) => {
+    const brandsList = await storage.getBrands();
+    res.json(brandsList);
+  });
+
+  app.get("/api/brands/:id", isAuthenticated, async (req, res) => {
+    const brand = await storage.getBrand(Number(req.params.id));
+    if (!brand) return res.status(404).json({ message: "Marca no encontrada" });
+    res.json(brand);
+  });
+
+  app.post("/api/brands", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+      });
+      const input = schema.parse(req.body);
+      const brand = await storage.createBrand(input);
+      res.status(201).json(brand);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.patch("/api/brands/:id", isAuthenticated, async (req, res) => {
+    const brand = await storage.updateBrand(Number(req.params.id), req.body);
+    res.json(brand);
+  });
+
+  app.delete("/api/brands/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteBrand(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === WAREHOUSES ROUTES ===
+  app.get("/api/warehouses", isAuthenticated, async (req, res) => {
+    const warehousesList = await storage.getWarehouses();
+    res.json(warehousesList);
+  });
+
+  app.get("/api/warehouses/:id", isAuthenticated, async (req, res) => {
+    const warehouse = await storage.getWarehouse(Number(req.params.id));
+    if (!warehouse) return res.status(404).json({ message: "Depósito no encontrado" });
+    res.json(warehouse);
+  });
+
+  app.post("/api/warehouses", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        code: z.string().min(1),
+        name: z.string().min(1),
+        address: z.string().optional(),
+        phone: z.string().optional(),
+        isMain: z.boolean().optional(),
+      });
+      const input = schema.parse(req.body);
+      const warehouse = await storage.createWarehouse(input);
+      res.status(201).json(warehouse);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.patch("/api/warehouses/:id", isAuthenticated, async (req, res) => {
+    const warehouse = await storage.updateWarehouse(Number(req.params.id), req.body);
+    res.json(warehouse);
+  });
+
+  app.delete("/api/warehouses/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteWarehouse(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === PRODUCT WAREHOUSE STOCK ROUTES ===
+  app.get("/api/products/:id/warehouse-stock", isAuthenticated, async (req, res) => {
+    const stocks = await storage.getProductWarehouseStock(Number(req.params.id));
+    res.json(stocks);
+  });
+
+  app.post("/api/products/:id/warehouse-stock", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        warehouseId: z.number(),
+        stockQuantity: z.number().default(0),
+        minStockLevel: z.number().optional(),
+        maxStockLevel: z.number().optional(),
+        locationCode: z.string().optional(),
+      });
+      const input = schema.parse(req.body);
+      const stock = await storage.setProductWarehouseStock({
+        productId: Number(req.params.id),
+        ...input
+      });
+      res.status(201).json(stock);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
   });
 
   return httpServer;

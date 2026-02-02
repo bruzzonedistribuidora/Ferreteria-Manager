@@ -8,7 +8,7 @@ import {
   suppliers, supplierAccountMovements, supplierProductDiscounts,
   paymentMethods, cardConfigurations, cardInstallmentPlans, bankAccounts,
   cashRegisters, cashRegisterSessions, cashMovements, checksWallet,
-  stockLocations, stockMovements,
+  stockLocations, stockMovements, brands, warehouses, productWarehouseStock,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -34,7 +34,10 @@ import {
   type CashMovement, type InsertCashMovement,
   type Check, type InsertCheck, type CheckWithAlert,
   type StockLocation, type InsertStockLocation,
-  type StockMovement, type InsertStockMovement, type StockMovementWithDetails, type StockAlert
+  type StockMovement, type InsertStockMovement, type StockMovementWithDetails, type StockAlert,
+  type Brand, type InsertBrand,
+  type Warehouse, type InsertWarehouse,
+  type ProductWarehouseStock, type InsertProductWarehouseStock
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -214,6 +217,27 @@ export interface IStorage {
   createStockMovement(userId: string, movement: Omit<InsertStockMovement, 'userId' | 'previousStock' | 'newStock'>): Promise<StockMovement>;
   adjustStock(userId: string, productId: number, quantity: number, type: 'add' | 'subtract', notes?: string): Promise<StockMovement>;
   getStockAlerts(): Promise<StockAlert[]>;
+
+  // Brands
+  getBrands(): Promise<Brand[]>;
+  getBrand(id: number): Promise<Brand | undefined>;
+  createBrand(brand: InsertBrand): Promise<Brand>;
+  updateBrand(id: number, updates: Partial<InsertBrand>): Promise<Brand>;
+  deleteBrand(id: number): Promise<void>;
+  seedDefaultBrands(): Promise<void>;
+
+  // Warehouses
+  getWarehouses(): Promise<Warehouse[]>;
+  getWarehouse(id: number): Promise<Warehouse | undefined>;
+  createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse>;
+  updateWarehouse(id: number, updates: Partial<InsertWarehouse>): Promise<Warehouse>;
+  deleteWarehouse(id: number): Promise<void>;
+  seedDefaultWarehouses(): Promise<void>;
+
+  // Product Warehouse Stock
+  getProductWarehouseStock(productId: number): Promise<ProductWarehouseStock[]>;
+  updateProductWarehouseStock(productId: number, warehouseId: number, stock: Partial<InsertProductWarehouseStock>): Promise<ProductWarehouseStock>;
+  setProductWarehouseStock(data: InsertProductWarehouseStock): Promise<ProductWarehouseStock>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1986,6 +2010,131 @@ export class DatabaseStorage implements IStorage {
       const order = { out_of_stock: 0, low_stock: 1, over_stock: 2 };
       return order[a.alertType] - order[b.alertType];
     });
+  }
+
+  // === BRANDS ===
+  async getBrands(): Promise<Brand[]> {
+    return await db.select().from(brands).where(eq(brands.isActive, true)).orderBy(asc(brands.name));
+  }
+
+  async getBrand(id: number): Promise<Brand | undefined> {
+    const [brand] = await db.select().from(brands).where(eq(brands.id, id));
+    return brand;
+  }
+
+  async createBrand(brand: InsertBrand): Promise<Brand> {
+    const [created] = await db.insert(brands).values(brand).returning();
+    return created;
+  }
+
+  async updateBrand(id: number, updates: Partial<InsertBrand>): Promise<Brand> {
+    const [updated] = await db.update(brands).set(updates).where(eq(brands.id, id)).returning();
+    return updated;
+  }
+
+  async deleteBrand(id: number): Promise<void> {
+    await db.update(brands).set({ isActive: false }).where(eq(brands.id, id));
+  }
+
+  async seedDefaultBrands(): Promise<void> {
+    const existing = await db.select().from(brands);
+    if (existing.length === 0) {
+      await db.insert(brands).values([
+        { name: "Stanley" },
+        { name: "Tramontina" },
+        { name: "Black & Decker" },
+        { name: "Pretul" },
+        { name: "Sin marca" },
+      ]);
+    }
+  }
+
+  // === WAREHOUSES ===
+  async getWarehouses(): Promise<Warehouse[]> {
+    return await db.select().from(warehouses).where(eq(warehouses.isActive, true)).orderBy(asc(warehouses.name));
+  }
+
+  async getWarehouse(id: number): Promise<Warehouse | undefined> {
+    const [warehouse] = await db.select().from(warehouses).where(eq(warehouses.id, id));
+    return warehouse;
+  }
+
+  async createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse> {
+    const [created] = await db.insert(warehouses).values(warehouse).returning();
+    return created;
+  }
+
+  async updateWarehouse(id: number, updates: Partial<InsertWarehouse>): Promise<Warehouse> {
+    const [updated] = await db.update(warehouses).set(updates).where(eq(warehouses.id, id)).returning();
+    return updated;
+  }
+
+  async deleteWarehouse(id: number): Promise<void> {
+    await db.update(warehouses).set({ isActive: false }).where(eq(warehouses.id, id));
+  }
+
+  async seedDefaultWarehouses(): Promise<void> {
+    const existing = await db.select().from(warehouses);
+    if (existing.length === 0) {
+      await db.insert(warehouses).values([
+        { code: "DEP-CENTRAL", name: "Depósito Central", isMain: true },
+        { code: "SUC-01", name: "Sucursal 1" },
+      ]);
+    }
+  }
+
+  // === PRODUCT WAREHOUSE STOCK ===
+  async getProductWarehouseStock(productId: number): Promise<ProductWarehouseStock[]> {
+    return await db.select().from(productWarehouseStock)
+      .where(eq(productWarehouseStock.productId, productId));
+  }
+
+  async updateProductWarehouseStock(productId: number, warehouseId: number, stock: Partial<InsertProductWarehouseStock>): Promise<ProductWarehouseStock> {
+    const existing = await db.select().from(productWarehouseStock)
+      .where(and(
+        eq(productWarehouseStock.productId, productId),
+        eq(productWarehouseStock.warehouseId, warehouseId)
+      ));
+
+    if (existing.length > 0) {
+      const [updated] = await db.update(productWarehouseStock)
+        .set({ ...stock, updatedAt: new Date() })
+        .where(and(
+          eq(productWarehouseStock.productId, productId),
+          eq(productWarehouseStock.warehouseId, warehouseId)
+        ))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(productWarehouseStock)
+        .values({ productId, warehouseId, ...stock })
+        .returning();
+      return created;
+    }
+  }
+
+  async setProductWarehouseStock(data: InsertProductWarehouseStock): Promise<ProductWarehouseStock> {
+    const existing = await db.select().from(productWarehouseStock)
+      .where(and(
+        eq(productWarehouseStock.productId, data.productId),
+        eq(productWarehouseStock.warehouseId, data.warehouseId)
+      ));
+
+    if (existing.length > 0) {
+      const [updated] = await db.update(productWarehouseStock)
+        .set({ ...data, updatedAt: new Date() })
+        .where(and(
+          eq(productWarehouseStock.productId, data.productId),
+          eq(productWarehouseStock.warehouseId, data.warehouseId)
+        ))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(productWarehouseStock)
+        .values(data)
+        .returning();
+      return created;
+    }
   }
 }
 
