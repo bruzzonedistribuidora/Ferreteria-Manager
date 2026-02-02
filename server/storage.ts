@@ -10,6 +10,7 @@ import {
   cashRegisters, cashRegisterSessions, cashMovements, checksWallet,
   stockLocations, stockMovements, brands, warehouses, productWarehouseStock,
   supplierImportTemplates, priceUpdateLogs, companySettings, printSettings,
+  ecommerceSettings, ecommerceOrders, ecommerceOrderItems, shoppingCarts,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -42,7 +43,11 @@ import {
   type SupplierImportTemplate, type InsertSupplierImportTemplate,
   type PriceUpdateLog, type InsertPriceUpdateLog,
   type CompanySettings, type InsertCompanySettings,
-  type PrintSettings, type InsertPrintSettings
+  type PrintSettings, type InsertPrintSettings,
+  type EcommerceSettings, type InsertEcommerceSettings,
+  type EcommerceOrder, type InsertEcommerceOrder,
+  type EcommerceOrderItem, type InsertEcommerceOrderItem,
+  type EcommerceOrderWithItems
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -2334,6 +2339,74 @@ export class DatabaseStorage implements IStorage {
         },
       ]);
     }
+  }
+
+  // === E-COMMERCE SETTINGS ===
+  async getEcommerceSettings(): Promise<EcommerceSettings | undefined> {
+    const [settings] = await db.select().from(ecommerceSettings).limit(1);
+    return settings;
+  }
+
+  async saveEcommerceSettings(settings: InsertEcommerceSettings): Promise<EcommerceSettings> {
+    const existing = await this.getEcommerceSettings();
+    if (existing) {
+      const [updated] = await db.update(ecommerceSettings)
+        .set({ ...settings, updatedAt: new Date() })
+        .where(eq(ecommerceSettings.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(ecommerceSettings).values(settings).returning();
+      return created;
+    }
+  }
+
+  // === E-COMMERCE ORDERS ===
+  async getEcommerceOrders(): Promise<EcommerceOrder[]> {
+    return await db.select().from(ecommerceOrders).orderBy(desc(ecommerceOrders.createdAt));
+  }
+
+  async getEcommerceOrder(id: number): Promise<EcommerceOrderWithItems | undefined> {
+    const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id));
+    if (!order) return undefined;
+    const items = await db.select().from(ecommerceOrderItems)
+      .where(eq(ecommerceOrderItems.orderId, id));
+    return { ...order, items };
+  }
+
+  async createEcommerceOrder(data: InsertEcommerceOrder, items: InsertEcommerceOrderItem[]): Promise<EcommerceOrderWithItems> {
+    const orderNumber = `EC-${Date.now().toString(36).toUpperCase()}-${nanoid(4).toUpperCase()}`;
+    const [order] = await db.insert(ecommerceOrders)
+      .values({ ...data, orderNumber })
+      .returning();
+    
+    const orderItems: EcommerceOrderItem[] = [];
+    for (const item of items) {
+      const [created] = await db.insert(ecommerceOrderItems)
+        .values({ ...item, orderId: order.id })
+        .returning();
+      orderItems.push(created);
+    }
+    
+    return { ...order, items: orderItems };
+  }
+
+  async updateEcommerceOrder(id: number, data: Partial<EcommerceOrder>): Promise<EcommerceOrder> {
+    const [updated] = await db.update(ecommerceOrders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(ecommerceOrders.id, id))
+      .returning();
+    return updated;
+  }
+
+  // === PRODUCTOS E-COMMERCE ===
+  async getEcommerceProducts(): Promise<Product[]> {
+    return await db.select().from(products)
+      .where(and(
+        eq(products.publishOnline, true),
+        eq(products.isActive, true)
+      ))
+      .orderBy(products.name);
   }
 }
 

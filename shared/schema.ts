@@ -1002,3 +1002,151 @@ export const insertPrintSettingsSchema = createInsertSchema(printSettings).omit(
 
 export type PrintSettings = typeof printSettings.$inferSelect;
 export type InsertPrintSettings = z.infer<typeof insertPrintSettingsSchema>;
+
+// =====================
+// E-COMMERCE TABLES
+// =====================
+
+export const ecommerceSettings = pgTable("ecommerce_settings", {
+  id: serial("id").primaryKey(),
+  storeName: text("store_name").default("Mi Tienda Online"),
+  storeDescription: text("store_description"),
+  storeLogoUrl: text("store_logo_url"),
+  storeBannerUrl: text("store_banner_url"),
+  currency: text("currency").default("ARS"),
+  minOrderAmount: numeric("min_order_amount", { precision: 10, scale: 2 }).default("0"),
+  maxOrderAmount: numeric("max_order_amount", { precision: 10, scale: 2 }),
+  
+  // Envíos
+  shippingEnabled: boolean("shipping_enabled").default(true),
+  freeShippingMinAmount: numeric("free_shipping_min_amount", { precision: 10, scale: 2 }),
+  flatShippingRate: numeric("flat_shipping_rate", { precision: 10, scale: 2 }).default("0"),
+  localPickupEnabled: boolean("local_pickup_enabled").default(true),
+  
+  // Pagos
+  paymentOnDeliveryEnabled: boolean("payment_on_delivery_enabled").default(true),
+  bankTransferEnabled: boolean("bank_transfer_enabled").default(true),
+  stripeEnabled: boolean("stripe_enabled").default(false),
+  mercadoPagoEnabled: boolean("mercado_pago_enabled").default(false),
+  
+  // Notificaciones
+  notifyNewOrders: boolean("notify_new_orders").default(true),
+  notificationEmail: text("notification_email"),
+  notificationWhatsapp: text("notification_whatsapp"),
+  
+  // Estado
+  isActive: boolean("is_active").default(false),
+  maintenanceMode: boolean("maintenance_mode").default(false),
+  maintenanceMessage: text("maintenance_message"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const ecommerceOrders = pgTable("ecommerce_orders", {
+  id: serial("id").primaryKey(),
+  orderNumber: text("order_number").notNull().unique(),
+  
+  // Cliente
+  clientId: integer("client_id").references(() => clients.id),
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email").notNull(),
+  customerPhone: text("customer_phone"),
+  customerWhatsapp: text("customer_whatsapp"),
+  
+  // Dirección de envío
+  shippingAddress: text("shipping_address"),
+  shippingCity: text("shipping_city"),
+  shippingProvince: text("shipping_province"),
+  shippingPostalCode: text("shipping_postal_code"),
+  shippingMethod: text("shipping_method"), // delivery, pickup
+  shippingCost: numeric("shipping_cost", { precision: 10, scale: 2 }).default("0"),
+  
+  // Totales
+  subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
+  discount: numeric("discount", { precision: 10, scale: 2 }).default("0"),
+  taxes: numeric("taxes", { precision: 10, scale: 2 }).default("0"),
+  total: numeric("total", { precision: 10, scale: 2 }).notNull(),
+  
+  // Pago
+  paymentMethod: text("payment_method").notNull(), // cash_on_delivery, bank_transfer, stripe, mercadopago
+  paymentStatus: text("payment_status").default("pending"), // pending, paid, failed, refunded
+  paymentReference: text("payment_reference"),
+  
+  // Estado del pedido
+  orderStatus: text("order_status").default("pending"), // pending, confirmed, processing, shipped, delivered, cancelled
+  
+  // Notas
+  customerNotes: text("customer_notes"),
+  internalNotes: text("internal_notes"),
+  
+  // Tracking
+  trackingNumber: text("tracking_number"),
+  trackingUrl: text("tracking_url"),
+  
+  // Conversión a venta
+  saleId: integer("sale_id").references(() => sales.id),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const ecommerceOrderItems = pgTable("ecommerce_order_items", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").references(() => ecommerceOrders.id).notNull(),
+  productId: integer("product_id").references(() => products.id),
+  productSku: text("product_sku").notNull(),
+  productName: text("product_name").notNull(),
+  quantity: numeric("quantity", { precision: 10, scale: 3 }).notNull(),
+  unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
+  discount: numeric("discount", { precision: 10, scale: 2 }).default("0"),
+  subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
+});
+
+export const shoppingCarts = pgTable("shopping_carts", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  clientId: integer("client_id").references(() => clients.id),
+  items: jsonb("items").default([]), // [{productId, sku, name, quantity, price}]
+  subtotal: numeric("subtotal", { precision: 10, scale: 2 }).default("0"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// E-Commerce Insert Schemas
+export const insertEcommerceSettingsSchema = createInsertSchema(ecommerceSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertEcommerceOrderSchema = createInsertSchema(ecommerceOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertEcommerceOrderItemSchema = createInsertSchema(ecommerceOrderItems).omit({
+  id: true,
+});
+
+export const insertShoppingCartSchema = createInsertSchema(shoppingCarts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// E-Commerce Types
+export type EcommerceSettings = typeof ecommerceSettings.$inferSelect;
+export type InsertEcommerceSettings = z.infer<typeof insertEcommerceSettingsSchema>;
+export type EcommerceOrder = typeof ecommerceOrders.$inferSelect;
+export type InsertEcommerceOrder = z.infer<typeof insertEcommerceOrderSchema>;
+export type EcommerceOrderItem = typeof ecommerceOrderItems.$inferSelect;
+export type InsertEcommerceOrderItem = z.infer<typeof insertEcommerceOrderItemSchema>;
+export type ShoppingCart = typeof shoppingCarts.$inferSelect;
+export type InsertShoppingCart = z.infer<typeof insertShoppingCartSchema>;
+
+export type EcommerceOrderWithItems = EcommerceOrder & {
+  items: EcommerceOrderItem[];
+};
