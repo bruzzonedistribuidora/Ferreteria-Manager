@@ -89,6 +89,99 @@ export async function registerRoutes(
     res.json(client);
   });
 
+  app.delete("/api/clients/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteClient(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  app.get("/api/clients/search/:query", isAuthenticated, async (req, res) => {
+    const clients = await storage.searchClients(req.params.query);
+    res.json(clients);
+  });
+
+  app.get("/api/clients/:id/details", isAuthenticated, async (req, res) => {
+    const client = await storage.getClientWithDetails(Number(req.params.id));
+    if (!client) return res.status(404).json({ message: "Client not found" });
+    res.json(client);
+  });
+
+  // === Authorized Contacts Routes ===
+  app.get("/api/clients/:clientId/contacts", isAuthenticated, async (req, res) => {
+    const contacts = await storage.getAuthorizedContacts(Number(req.params.clientId));
+    res.json(contacts);
+  });
+
+  app.post("/api/clients/:clientId/contacts", isAuthenticated, async (req, res) => {
+    try {
+      const contactSchema = z.object({
+        name: z.string().min(1),
+        dni: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().email().optional().or(z.literal("")),
+        position: z.string().optional(),
+        notes: z.string().optional()
+      });
+      const input = contactSchema.parse(req.body);
+      const contact = await storage.createAuthorizedContact({
+        ...input,
+        clientId: Number(req.params.clientId)
+      });
+      res.status(201).json(contact);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put("/api/contacts/:id", isAuthenticated, async (req, res) => {
+    const contact = await storage.updateAuthorizedContact(Number(req.params.id), req.body);
+    res.json(contact);
+  });
+
+  app.delete("/api/contacts/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteAuthorizedContact(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === Client Account (Cuenta Corriente) Routes ===
+  app.get("/api/clients/:clientId/account", isAuthenticated, async (req, res) => {
+    const summary = await storage.getClientAccountSummary(Number(req.params.clientId));
+    res.json(summary);
+  });
+
+  app.get("/api/clients/:clientId/movements", isAuthenticated, async (req, res) => {
+    const movements = await storage.getClientMovements(Number(req.params.clientId));
+    res.json(movements);
+  });
+
+  app.post("/api/clients/:clientId/movements", isAuthenticated, async (req, res) => {
+    try {
+      const movementSchema = z.object({
+        type: z.enum(["debit", "credit"]),
+        amount: z.number().positive(),
+        concept: z.string().min(1),
+        referenceType: z.string().optional(),
+        referenceId: z.number().optional(),
+        documentNumber: z.string().optional(),
+        notes: z.string().optional()
+      });
+      const input = movementSchema.parse(req.body);
+      const user = req.user as any;
+      const movement = await storage.createAccountMovement(user.claims.sub, {
+        ...input,
+        clientId: Number(req.params.clientId)
+      });
+      res.status(201).json(movement);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
   // === Sales Routes ===
   app.post(api.sales.create.path, isAuthenticated, async (req, res) => {
     const input = api.sales.create.input.parse(req.body);

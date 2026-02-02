@@ -1,9 +1,10 @@
 import { db } from "./db";
-import { eq, desc, sql, sum, count, and, inArray } from "drizzle-orm";
+import { eq, desc, sql, sum, count, and, inArray, or, ilike } from "drizzle-orm";
 import { 
   products, categories, clients, sales, saleItems,
   deliveryNotes, deliveryNoteItems, preInvoices, preInvoiceDeliveryNotes,
   roles, modules, roleModulePermissions, users,
+  clientAuthorizedContacts, clientAccountMovements,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -13,7 +14,10 @@ import {
   type PreInvoice, type PreInvoiceWithDetails, type CreatePreInvoiceRequest,
   type ClientWithPendingNotes,
   type Role, type InsertRole, type Module, type InsertModule,
-  type RoleModulePermission, type User, type UserWithRole, type RoleWithPermissions
+  type RoleModulePermission, type User, type UserWithRole, type RoleWithPermissions,
+  type ClientAuthorizedContact, type InsertAuthorizedContact,
+  type ClientAccountMovement, type InsertAccountMovement,
+  type ClientWithDetails, type ClientAccountSummary, type CreateAccountMovementRequest
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -32,8 +36,22 @@ export interface IStorage {
   // Clients
   getClients(search?: string): Promise<Client[]>;
   getClient(id: number): Promise<Client | undefined>;
+  getClientWithDetails(id: number): Promise<ClientWithDetails | undefined>;
   createClient(client: InsertClient): Promise<Client>;
   updateClient(id: number, updates: Partial<InsertClient>): Promise<Client>;
+  deleteClient(id: number): Promise<void>;
+  searchClients(query: string): Promise<Client[]>;
+
+  // Authorized Contacts
+  getAuthorizedContacts(clientId: number): Promise<ClientAuthorizedContact[]>;
+  createAuthorizedContact(contact: InsertAuthorizedContact): Promise<ClientAuthorizedContact>;
+  updateAuthorizedContact(id: number, updates: Partial<InsertAuthorizedContact>): Promise<ClientAuthorizedContact>;
+  deleteAuthorizedContact(id: number): Promise<void>;
+
+  // Client Account (Cuenta Corriente)
+  getClientAccountSummary(clientId: number): Promise<ClientAccountSummary>;
+  createAccountMovement(userId: string, request: CreateAccountMovementRequest): Promise<ClientAccountMovement>;
+  getClientMovements(clientId: number): Promise<ClientAccountMovement[]>;
 
   // Sales
   createSale(userId: string, request: CreateSaleRequest): Promise<Sale>;
@@ -166,8 +184,130 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateClient(id: number, updates: Partial<InsertClient>): Promise<Client> {
-    const [updatedClient] = await db.update(clients).set(updates).where(eq(clients.id, id)).returning();
+    const [updatedClient] = await db.update(clients).set({
+      ...updates,
+      updatedAt: new Date()
+    }).where(eq(clients.id, id)).returning();
     return updatedClient;
+  }
+
+  async deleteClient(id: number): Promise<void> {
+    await db.update(clients).set({ isActive: false, updatedAt: new Date() }).where(eq(clients.id, id));
+  }
+
+  async searchClients(query: string): Promise<Client[]> {
+    const searchPattern = `%${query.toLowerCase()}%`;
+    return await db.select().from(clients)
+      .where(
+        and(
+          eq(clients.isActive, true),
+          or(
+            sql`LOWER(${clients.name}) LIKE ${searchPattern}`,
+            sql`LOWER(${clients.businessName}) LIKE ${searchPattern}`,
+            sql`${clients.taxId} LIKE ${searchPattern}`,
+            sql`${clients.phone} LIKE ${searchPattern}`,
+            sql`${clients.whatsapp} LIKE ${searchPattern}`,
+            sql`LOWER(${clients.email}) LIKE ${searchPattern}`
+          )
+        )
+      );
+  }
+
+  async getClientWithDetails(id: number): Promise<ClientWithDetails | undefined> {
+    const client = await this.getClient(id);
+    if (!client) return undefined;
+
+    const contacts = await this.getAuthorizedContacts(id);
+    const summary = await this.getClientAccountSummary(id);
+
+    return {
+      ...client,
+      authorizedContacts: contacts,
+      currentBalance: summary.currentBalance
+    };
+  }
+
+  // === Authorized Contacts ===
+  async getAuthorizedContacts(clientId: number): Promise<ClientAuthorizedContact[]> {
+    return await db.select().from(clientAuthorizedContacts)
+      .where(and(
+        eq(clientAuthorizedContacts.clientId, clientId),
+        eq(clientAuthorizedContacts.isActive, true)
+      ));
+  }
+
+  async createAuthorizedContact(contact: InsertAuthorizedContact): Promise<ClientAuthorizedContact> {
+    const [newContact] = await db.insert(clientAuthorizedContacts).values(contact).returning();
+    return newContact;
+  }
+
+  async updateAuthorizedContact(id: number, updates: Partial<InsertAuthorizedContact>): Promise<ClientAuthorizedContact> {
+    const [updated] = await db.update(clientAuthorizedContacts)
+      .set(updates)
+      .where(eq(clientAuthorizedContacts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAuthorizedContact(id: number): Promise<void> {
+    await db.update(clientAuthorizedContacts)
+      .set({ isActive: false })
+      .where(eq(clientAuthorizedContacts.id, id));
+  }
+
+  // === Client Account (Cuenta Corriente) ===
+  async getClientMovements(clientId: number): Promise<ClientAccountMovement[]> {
+    return await db.select().from(clientAccountMovements)
+      .where(eq(clientAccountMovements.clientId, clientId))
+      .orderBy(desc(clientAccountMovements.createdAt));
+  }
+
+  async getClientAccountSummary(clientId: number): Promise<ClientAccountSummary> {
+    const client = await this.getClient(clientId);
+    const movements = await this.getClientMovements(clientId);
+
+    let totalDebit = 0;
+    let totalCredit = 0;
+
+    for (const mov of movements) {
+      if (mov.type === 'debit') {
+        totalDebit += Number(mov.amount);
+      } else {
+        totalCredit += Number(mov.amount);
+      }
+    }
+
+    return {
+      clientId,
+      clientName: client?.name || '',
+      totalDebit,
+      totalCredit,
+      currentBalance: totalDebit - totalCredit,
+      movements
+    };
+  }
+
+  async createAccountMovement(userId: string, request: CreateAccountMovementRequest): Promise<ClientAccountMovement> {
+    // Get current balance
+    const summary = await this.getClientAccountSummary(request.clientId);
+    const newBalance = request.type === 'debit' 
+      ? summary.currentBalance + request.amount 
+      : summary.currentBalance - request.amount;
+
+    const [movement] = await db.insert(clientAccountMovements).values({
+      clientId: request.clientId,
+      type: request.type,
+      amount: request.amount.toString(),
+      balance: newBalance.toString(),
+      concept: request.concept,
+      referenceType: request.referenceType,
+      referenceId: request.referenceId,
+      documentNumber: request.documentNumber,
+      notes: request.notes,
+      userId
+    }).returning();
+
+    return movement;
   }
 
   // === Sales ===

@@ -32,11 +32,51 @@ export const products = pgTable("products", {
 export const clients = pgTable("clients", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  businessName: text("business_name"), // Razón social
   email: text("email"),
   phone: text("phone"),
+  whatsapp: text("whatsapp"),
   address: text("address"),
+  city: text("city"),
+  province: text("province"),
+  postalCode: text("postal_code"),
   taxId: text("tax_id"), // CUIT/CUIL/DNI
+  taxCondition: text("tax_condition").default("consumidor_final"), // consumidor_final, responsable_inscripto, monotributista, exento
+  discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).default("0"),
+  creditLimit: numeric("credit_limit", { precision: 12, scale: 2 }).default("0"),
   notes: text("notes"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// === AUTHORIZED CONTACTS (Personas autorizadas por cliente) ===
+export const clientAuthorizedContacts = pgTable("client_authorized_contacts", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id),
+  name: text("name").notNull(),
+  dni: text("dni"),
+  phone: text("phone"),
+  email: text("email"),
+  position: text("position"), // Cargo: encargado, dueño, empleado
+  notes: text("notes"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === CURRENT ACCOUNT (Cuenta corriente) ===
+export const clientAccountMovements = pgTable("client_account_movements", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id),
+  type: text("type").notNull(), // debit (debe), credit (haber)
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  balance: numeric("balance", { precision: 12, scale: 2 }).notNull(), // Running balance after this movement
+  concept: text("concept").notNull(), // invoice, payment, delivery_note, adjustment, etc.
+  referenceType: text("reference_type"), // sale, delivery_note, pre_invoice, payment
+  referenceId: integer("reference_id"), // ID of related document
+  documentNumber: text("document_number"), // Número de comprobante
+  notes: text("notes"),
+  userId: text("user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -169,15 +209,39 @@ export const preInvoiceDeliveryNoteRelations = relations(preInvoiceDeliveryNotes
   }),
 }));
 
+// === CLIENT RELATIONS ===
+export const clientRelations = relations(clients, ({ many }) => ({
+  authorizedContacts: many(clientAuthorizedContacts),
+  accountMovements: many(clientAccountMovements),
+  sales: many(sales),
+  deliveryNotes: many(deliveryNotes),
+}));
+
+export const clientAuthorizedContactRelations = relations(clientAuthorizedContacts, ({ one }) => ({
+  client: one(clients, {
+    fields: [clientAuthorizedContacts.clientId],
+    references: [clients.id],
+  }),
+}));
+
+export const clientAccountMovementRelations = relations(clientAccountMovements, ({ one }) => ({
+  client: one(clients, {
+    fields: [clientAccountMovements.clientId],
+    references: [clients.id],
+  }),
+}));
+
 // === ZOD SCHEMAS ===
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true });
-export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true });
+export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSaleSchema = createInsertSchema(sales).omit({ id: true, receiptNumber: true, userId: true, createdAt: true });
 export const insertSaleItemSchema = createInsertSchema(saleItems).omit({ id: true, saleId: true });
 export const insertDeliveryNoteSchema = createInsertSchema(deliveryNotes).omit({ id: true, noteNumber: true, userId: true, createdAt: true });
 export const insertDeliveryNoteItemSchema = createInsertSchema(deliveryNoteItems).omit({ id: true, deliveryNoteId: true });
 export const insertPreInvoiceSchema = createInsertSchema(preInvoices).omit({ id: true, preInvoiceNumber: true, userId: true, createdAt: true, reviewedAt: true, reviewedBy: true });
+export const insertAuthorizedContactSchema = createInsertSchema(clientAuthorizedContacts).omit({ id: true, createdAt: true });
+export const insertAccountMovementSchema = createInsertSchema(clientAccountMovements).omit({ id: true, createdAt: true });
 
 // === API TYPES ===
 export type Product = typeof products.$inferSelect;
@@ -189,11 +253,15 @@ export type DeliveryNote = typeof deliveryNotes.$inferSelect;
 export type DeliveryNoteItem = typeof deliveryNoteItems.$inferSelect;
 export type PreInvoice = typeof preInvoices.$inferSelect;
 export type PreInvoiceDeliveryNote = typeof preInvoiceDeliveryNotes.$inferSelect;
+export type ClientAuthorizedContact = typeof clientAuthorizedContacts.$inferSelect;
+export type ClientAccountMovement = typeof clientAccountMovements.$inferSelect;
 
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type InsertDeliveryNote = z.infer<typeof insertDeliveryNoteSchema>;
 export type InsertDeliveryNoteItem = z.infer<typeof insertDeliveryNoteItemSchema>;
+export type InsertAuthorizedContact = z.infer<typeof insertAuthorizedContactSchema>;
+export type InsertAccountMovement = z.infer<typeof insertAccountMovementSchema>;
 
 // Custom Types for Frontend
 export type ProductWithCategory = Product & { category: Category | null };
@@ -253,4 +321,30 @@ export type CreatePreInvoiceRequest = {
 export type ClientWithPendingNotes = Client & {
   pendingDeliveryNotes: DeliveryNoteWithDetails[];
   totalPendingAmount: number;
+};
+
+// === ADVANCED CLIENT TYPES ===
+export type ClientWithDetails = Client & {
+  authorizedContacts: ClientAuthorizedContact[];
+  currentBalance: number;
+};
+
+export type ClientAccountSummary = {
+  clientId: number;
+  clientName: string;
+  totalDebit: number;
+  totalCredit: number;
+  currentBalance: number;
+  movements: ClientAccountMovement[];
+};
+
+export type CreateAccountMovementRequest = {
+  clientId: number;
+  type: "debit" | "credit";
+  amount: number;
+  concept: string;
+  referenceType?: string;
+  referenceId?: number;
+  documentNumber?: string;
+  notes?: string;
 };
