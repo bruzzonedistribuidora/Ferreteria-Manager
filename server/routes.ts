@@ -836,6 +836,7 @@ export async function registerRoutes(
 
   // === Cash Registers Routes ===
   await storage.seedDefaultCashRegister();
+  await storage.seedDefaultStockLocations();
 
   app.get("/api/cash-registers", isAuthenticated, async (req, res) => {
     const registers = await storage.getCashRegisters();
@@ -1110,6 +1111,111 @@ export async function registerRoutes(
       }
       throw err;
     }
+  });
+
+  // === MODULE 8: STOCK ===
+  
+  // Stock Locations
+  app.get("/api/stock-locations", isAuthenticated, async (req, res) => {
+    const locations = await storage.getStockLocations();
+    res.json(locations);
+  });
+
+  app.get("/api/stock-locations/:id", isAuthenticated, async (req, res) => {
+    const location = await storage.getStockLocation(Number(req.params.id));
+    if (!location) return res.status(404).json({ message: "Ubicación no encontrada" });
+    res.json(location);
+  });
+
+  app.post("/api/stock-locations", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        code: z.string().min(1, "El código es requerido"),
+        name: z.string().min(1, "El nombre es requerido"),
+        description: z.string().optional(),
+        zone: z.string().optional(),
+        aisle: z.string().optional(),
+        shelf: z.string().optional(),
+        bin: z.string().optional(),
+      });
+      const input = schema.parse(req.body);
+      const location = await storage.createStockLocation(input);
+      res.status(201).json(location);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.patch("/api/stock-locations/:id", isAuthenticated, async (req, res) => {
+    try {
+      const location = await storage.updateStockLocation(Number(req.params.id), req.body);
+      res.json(location);
+    } catch (err) {
+      throw err;
+    }
+  });
+
+  app.delete("/api/stock-locations/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteStockLocation(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // Stock Movements
+  app.get("/api/stock-movements", isAuthenticated, async (req, res) => {
+    const productId = req.query.productId ? Number(req.query.productId) : undefined;
+    const movements = await storage.getStockMovements(productId);
+    res.json(movements);
+  });
+
+  app.post("/api/stock-movements", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        productId: z.number(),
+        movementType: z.enum(['entry', 'exit', 'adjustment_add', 'adjustment_subtract', 'purchase', 'sale']),
+        quantity: z.number().min(1, "La cantidad debe ser mayor a 0"),
+        referenceType: z.string().optional(),
+        referenceId: z.number().optional(),
+        notes: z.string().optional(),
+      });
+      const input = schema.parse(req.body);
+      const user = req.user as any;
+      const movement = await storage.createStockMovement(user.claims.sub, input);
+      res.status(201).json(movement);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.post("/api/stock/adjust", isAuthenticated, async (req, res) => {
+    try {
+      const schema = z.object({
+        productId: z.number(),
+        quantity: z.number(),
+        type: z.enum(['add', 'subtract']),
+        notes: z.string().optional(),
+      });
+      const input = schema.parse(req.body);
+      const user = req.user as any;
+      const movement = await storage.adjustStock(user.claims.sub, input.productId, input.quantity, input.type, input.notes);
+      res.status(201).json(movement);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  // Stock Alerts
+  app.get("/api/stock/alerts", isAuthenticated, async (req, res) => {
+    const alerts = await storage.getStockAlerts();
+    res.json(alerts);
   });
 
   return httpServer;

@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertProductSchema } from "@shared/schema";
+import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "@/hooks/use-toast";
@@ -177,15 +178,17 @@ export default function Products() {
 
 function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: () => void }) {
   const { mutate, isPending } = useCreateProduct();
+  const { data: locations = [] } = useQuery<any[]>({ queryKey: ['/api/stock-locations'] });
   
   const form = useForm<z.infer<typeof insertProductSchema>>({
     resolver: zodResolver(insertProductSchema),
     defaultValues: {
       name: "",
       sku: "",
-      price: 0,
+      price: "0",
       stockQuantity: 0,
       minStockLevel: 5,
+      maxStockLevel: 100,
       isActive: true,
     },
   });
@@ -264,7 +267,7 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
               <FormItem>
                 <FormLabel>Precio ($)</FormLabel>
                 <FormControl>
-                  <Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
+                  <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value)} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -279,6 +282,59 @@ function ProductForm({ categories, onSuccess }: { categories: any[], onSuccess: 
                 <FormControl>
                   <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="minStockLevel"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Stock Mínimo</FormLabel>
+                <FormControl>
+                  <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} value={field.value ?? 5} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="maxStockLevel"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Stock Máximo</FormLabel>
+                <FormControl>
+                  <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} value={field.value ?? 100} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="locationId"
+            render={({ field }) => (
+              <FormItem className="col-span-2">
+                <FormLabel>Ubicación en Depósito</FormLabel>
+                <Select 
+                  onValueChange={(val) => field.onChange(val ? Number(val) : null)}
+                  value={field.value?.toString() || ""}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar ubicación (opcional)" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {locations.map((loc: any) => (
+                      <SelectItem key={loc.id} value={loc.id.toString()}>
+                        {loc.code} - {loc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

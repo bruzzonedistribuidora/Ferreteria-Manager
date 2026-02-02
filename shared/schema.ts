@@ -24,8 +24,39 @@ export const products = pgTable("products", {
   costPrice: numeric("cost_price", { precision: 10, scale: 2 }),
   stockQuantity: integer("stock_quantity").notNull().default(0),
   minStockLevel: integer("min_stock_level").default(5),
+  maxStockLevel: integer("max_stock_level").default(100),
+  locationId: integer("location_id").references(() => stockLocations.id),
   imageUrl: text("image_url"),
   isActive: boolean("is_active").default(true),
+});
+
+// === STOCK LOCATIONS (Ubicaciones en depósito) ===
+export const stockLocations = pgTable("stock_locations", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  zone: text("zone"),
+  aisle: text("aisle"),
+  shelf: text("shelf"),
+  bin: text("bin"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === STOCK MOVEMENTS (Movimientos de stock) ===
+export const stockMovements = pgTable("stock_movements", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id),
+  movementType: text("movement_type").notNull(),
+  quantity: integer("quantity").notNull(),
+  previousStock: integer("previous_stock").notNull(),
+  newStock: integer("new_stock").notNull(),
+  referenceType: text("reference_type"),
+  referenceId: integer("reference_id"),
+  notes: text("notes"),
+  userId: text("user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // === CLIENTS ===
@@ -709,4 +740,28 @@ export type CheckWithAlert = Check & {
   daysUntilDue: number;
   isOverdue: boolean;
   alertLevel: 'normal' | 'warning' | 'urgent' | 'overdue';
+};
+
+// === Insert schemas for Stock Module ===
+export const insertStockLocationSchema = createInsertSchema(stockLocations).omit({ id: true, createdAt: true });
+export const insertStockMovementSchema = createInsertSchema(stockMovements).omit({ id: true, createdAt: true });
+
+// Types for Stock Module
+export type StockLocation = typeof stockLocations.$inferSelect;
+export type StockMovement = typeof stockMovements.$inferSelect;
+export type InsertStockLocation = z.infer<typeof insertStockLocationSchema>;
+export type InsertStockMovement = z.infer<typeof insertStockMovementSchema>;
+
+// Stock alert types
+export type StockAlert = {
+  product: Product & { category: Category | null; location: StockLocation | null };
+  alertType: 'low_stock' | 'out_of_stock' | 'over_stock';
+  currentStock: number;
+  minLevel: number;
+  maxLevel: number;
+};
+
+// Stock movement with product details
+export type StockMovementWithDetails = StockMovement & {
+  product: Product | null;
 };

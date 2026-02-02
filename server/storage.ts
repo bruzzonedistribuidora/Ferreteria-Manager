@@ -8,6 +8,7 @@ import {
   suppliers, supplierAccountMovements, supplierProductDiscounts,
   paymentMethods, cardConfigurations, cardInstallmentPlans, bankAccounts,
   cashRegisters, cashRegisterSessions, cashMovements, checksWallet,
+  stockLocations, stockMovements,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -31,7 +32,9 @@ import {
   type CashRegister, type InsertCashRegister,
   type CashRegisterSession, type InsertCashSession, type CashSessionWithDetails,
   type CashMovement, type InsertCashMovement,
-  type Check, type InsertCheck, type CheckWithAlert
+  type Check, type InsertCheck, type CheckWithAlert,
+  type StockLocation, type InsertStockLocation,
+  type StockMovement, type InsertStockMovement, type StockMovementWithDetails, type StockAlert
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -197,6 +200,20 @@ export interface IStorage {
   depositCheck(id: number, depositAccountId: number): Promise<Check>;
   endorseCheck(id: number, endorsedTo: string): Promise<Check>;
   rejectCheck(id: number, reason: string): Promise<Check>;
+
+  // Stock Locations
+  getStockLocations(): Promise<StockLocation[]>;
+  getStockLocation(id: number): Promise<StockLocation | undefined>;
+  createStockLocation(location: InsertStockLocation): Promise<StockLocation>;
+  updateStockLocation(id: number, updates: Partial<InsertStockLocation>): Promise<StockLocation>;
+  deleteStockLocation(id: number): Promise<void>;
+  seedDefaultStockLocations(): Promise<void>;
+
+  // Stock Movements
+  getStockMovements(productId?: number): Promise<StockMovementWithDetails[]>;
+  createStockMovement(userId: string, movement: Omit<InsertStockMovement, 'userId' | 'previousStock' | 'newStock'>): Promise<StockMovement>;
+  adjustStock(userId: string, productId: number, quantity: number, type: 'add' | 'subtract', notes?: string): Promise<StockMovement>;
+  getStockAlerts(): Promise<StockAlert[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1768,6 +1785,207 @@ export class DatabaseStorage implements IStorage {
       .where(eq(checksWallet.id, id))
       .returning();
     return updated;
+  }
+
+  // === Stock Locations ===
+  async getStockLocations(): Promise<StockLocation[]> {
+    return db.select().from(stockLocations).where(eq(stockLocations.isActive, true)).orderBy(stockLocations.code);
+  }
+
+  async getStockLocation(id: number): Promise<StockLocation | undefined> {
+    const [location] = await db.select().from(stockLocations).where(eq(stockLocations.id, id));
+    return location;
+  }
+
+  async createStockLocation(location: InsertStockLocation): Promise<StockLocation> {
+    const [created] = await db.insert(stockLocations).values(location).returning();
+    return created;
+  }
+
+  async updateStockLocation(id: number, updates: Partial<InsertStockLocation>): Promise<StockLocation> {
+    const [updated] = await db.update(stockLocations).set(updates).where(eq(stockLocations.id, id)).returning();
+    return updated;
+  }
+
+  async deleteStockLocation(id: number): Promise<void> {
+    await db.update(stockLocations).set({ isActive: false }).where(eq(stockLocations.id, id));
+  }
+
+  async seedDefaultStockLocations(): Promise<void> {
+    const existing = await db.select().from(stockLocations);
+    if (existing.length === 0) {
+      await db.insert(stockLocations).values([
+        { code: "A-01-01", name: "Estante A - Nivel 1", zone: "A", aisle: "01", shelf: "01" },
+        { code: "A-01-02", name: "Estante A - Nivel 2", zone: "A", aisle: "01", shelf: "02" },
+        { code: "B-01-01", name: "Estante B - Nivel 1", zone: "B", aisle: "01", shelf: "01" },
+        { code: "DEP-PISO", name: "Depósito Piso", zone: "DEP", description: "Productos grandes en piso" },
+      ]);
+    }
+  }
+
+  // === Stock Movements ===
+  async getStockMovements(productId?: number): Promise<StockMovementWithDetails[]> {
+    let query = db
+      .select({
+        id: stockMovements.id,
+        productId: stockMovements.productId,
+        movementType: stockMovements.movementType,
+        quantity: stockMovements.quantity,
+        previousStock: stockMovements.previousStock,
+        newStock: stockMovements.newStock,
+        referenceType: stockMovements.referenceType,
+        referenceId: stockMovements.referenceId,
+        notes: stockMovements.notes,
+        userId: stockMovements.userId,
+        createdAt: stockMovements.createdAt,
+        product: {
+          id: products.id,
+          sku: products.sku,
+          name: products.name,
+          description: products.description,
+          categoryId: products.categoryId,
+          price: products.price,
+          costPrice: products.costPrice,
+          stockQuantity: products.stockQuantity,
+          minStockLevel: products.minStockLevel,
+          maxStockLevel: products.maxStockLevel,
+          locationId: products.locationId,
+          imageUrl: products.imageUrl,
+          isActive: products.isActive,
+        }
+      })
+      .from(stockMovements)
+      .leftJoin(products, eq(stockMovements.productId, products.id))
+      .orderBy(desc(stockMovements.createdAt));
+
+    if (productId) {
+      return query.where(eq(stockMovements.productId, productId));
+    }
+    return query;
+  }
+
+  async createStockMovement(userId: string, movement: Omit<InsertStockMovement, 'userId' | 'previousStock' | 'newStock'>): Promise<StockMovement> {
+    const product = await this.getProduct(movement.productId);
+    if (!product) throw new Error("Producto no encontrado");
+
+    const previousStock = product.stockQuantity;
+    let newStock = previousStock;
+
+    if (movement.movementType === 'entry' || movement.movementType === 'adjustment_add' || movement.movementType === 'purchase') {
+      newStock = previousStock + movement.quantity;
+    } else if (movement.movementType === 'exit' || movement.movementType === 'adjustment_subtract' || movement.movementType === 'sale') {
+      newStock = previousStock - movement.quantity;
+    }
+
+    await db.update(products).set({ stockQuantity: newStock }).where(eq(products.id, movement.productId));
+
+    const [created] = await db.insert(stockMovements).values({
+      ...movement,
+      userId,
+      previousStock,
+      newStock,
+    }).returning();
+    return created;
+  }
+
+  async adjustStock(userId: string, productId: number, quantity: number, type: 'add' | 'subtract', notes?: string): Promise<StockMovement> {
+    return this.createStockMovement(userId, {
+      productId,
+      quantity: Math.abs(quantity),
+      movementType: type === 'add' ? 'adjustment_add' : 'adjustment_subtract',
+      notes,
+    });
+  }
+
+  async getStockAlerts(): Promise<StockAlert[]> {
+    const allProducts = await db
+      .select({
+        id: products.id,
+        sku: products.sku,
+        name: products.name,
+        description: products.description,
+        categoryId: products.categoryId,
+        price: products.price,
+        costPrice: products.costPrice,
+        stockQuantity: products.stockQuantity,
+        minStockLevel: products.minStockLevel,
+        maxStockLevel: products.maxStockLevel,
+        locationId: products.locationId,
+        imageUrl: products.imageUrl,
+        isActive: products.isActive,
+        category: {
+          id: categories.id,
+          name: categories.name,
+          description: categories.description,
+        },
+        location: {
+          id: stockLocations.id,
+          code: stockLocations.code,
+          name: stockLocations.name,
+          description: stockLocations.description,
+          zone: stockLocations.zone,
+          aisle: stockLocations.aisle,
+          shelf: stockLocations.shelf,
+          bin: stockLocations.bin,
+          isActive: stockLocations.isActive,
+          createdAt: stockLocations.createdAt,
+        }
+      })
+      .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(stockLocations, eq(products.locationId, stockLocations.id))
+      .where(eq(products.isActive, true));
+
+    const alerts: StockAlert[] = [];
+
+    for (const product of allProducts) {
+      const currentStock = product.stockQuantity;
+      const minLevel = product.minStockLevel ?? 5;
+      const maxLevel = product.maxStockLevel ?? 100;
+
+      if (currentStock === 0) {
+        alerts.push({
+          product: {
+            ...product,
+            category: product.category?.id ? product.category : null,
+            location: product.location?.id ? product.location : null,
+          },
+          alertType: 'out_of_stock',
+          currentStock,
+          minLevel,
+          maxLevel,
+        });
+      } else if (currentStock <= minLevel) {
+        alerts.push({
+          product: {
+            ...product,
+            category: product.category?.id ? product.category : null,
+            location: product.location?.id ? product.location : null,
+          },
+          alertType: 'low_stock',
+          currentStock,
+          minLevel,
+          maxLevel,
+        });
+      } else if (currentStock > maxLevel) {
+        alerts.push({
+          product: {
+            ...product,
+            category: product.category?.id ? product.category : null,
+            location: product.location?.id ? product.location : null,
+          },
+          alertType: 'over_stock',
+          currentStock,
+          minLevel,
+          maxLevel,
+        });
+      }
+    }
+
+    return alerts.sort((a, b) => {
+      const order = { out_of_stock: 0, low_stock: 1, over_stock: 2 };
+      return order[a.alertType] - order[b.alertType];
+    });
   }
 }
 

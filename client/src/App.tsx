@@ -17,6 +17,7 @@ import Users from "@/pages/Users";
 import Suppliers from "@/pages/Suppliers";
 import PaymentMethods from "@/pages/PaymentMethods";
 import CashRegisters from "@/pages/CashRegisters";
+import Stock from "@/pages/Stock";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 
@@ -73,6 +74,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/pos" component={Pos} />
       <Route path="/products" component={Products} />
+      <Route path="/stock" component={Stock} />
       <Route path="/clients" component={Clients} />
       <Route path="/sales" component={SalesHistory} />
       <Route path="/remitos" component={Remitos} />
