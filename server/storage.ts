@@ -5,6 +5,7 @@ import {
   deliveryNotes, deliveryNoteItems, preInvoices, preInvoiceDeliveryNotes,
   roles, modules, roleModulePermissions, users,
   clientAuthorizedContacts, clientAccountMovements,
+  suppliers, supplierAccountMovements, supplierProductDiscounts,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -17,7 +18,10 @@ import {
   type RoleModulePermission, type User, type UserWithRole, type RoleWithPermissions,
   type ClientAuthorizedContact, type InsertAuthorizedContact,
   type ClientAccountMovement, type InsertAccountMovement,
-  type ClientWithDetails, type ClientAccountSummary, type CreateAccountMovementRequest
+  type ClientWithDetails, type ClientAccountSummary, type CreateAccountMovementRequest,
+  type Supplier, type InsertSupplier, type SupplierAccountMovement, type SupplierProductDiscount,
+  type SupplierWithDetails, type SupplierAccountSummary, type CreateSupplierMovementRequest,
+  type InsertSupplierMovement, type InsertSupplierDiscount
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -97,6 +101,26 @@ export interface IStorage {
 
   // Initial Setup
   seedDefaultRolesAndModules(): Promise<void>;
+
+  // Suppliers
+  getSuppliers(search?: string): Promise<Supplier[]>;
+  getSupplier(id: number): Promise<Supplier | undefined>;
+  getSupplierWithDetails(id: number): Promise<SupplierWithDetails | undefined>;
+  createSupplier(supplier: InsertSupplier): Promise<Supplier>;
+  updateSupplier(id: number, updates: Partial<InsertSupplier>): Promise<Supplier>;
+  deleteSupplier(id: number): Promise<void>;
+  searchSuppliers(query: string): Promise<Supplier[]>;
+
+  // Supplier Account (Cuenta Corriente)
+  getSupplierAccountSummary(supplierId: number): Promise<SupplierAccountSummary>;
+  createSupplierMovement(userId: string, request: CreateSupplierMovementRequest): Promise<SupplierAccountMovement>;
+  getSupplierMovements(supplierId: number): Promise<SupplierAccountMovement[]>;
+
+  // Supplier Product Discounts
+  getSupplierDiscounts(supplierId: number): Promise<SupplierProductDiscount[]>;
+  createSupplierDiscount(discount: InsertSupplierDiscount): Promise<SupplierProductDiscount>;
+  updateSupplierDiscount(id: number, updates: Partial<InsertSupplierDiscount>): Promise<SupplierProductDiscount>;
+  deleteSupplierDiscount(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -885,6 +909,163 @@ export class DatabaseStorage implements IStorage {
         canDelete: false
       }));
     await db.insert(roleModulePermissions).values(cajeroPermissions);
+  }
+
+  // === Suppliers ===
+  async getSuppliers(search?: string): Promise<Supplier[]> {
+    if (search) {
+      const searchPattern = `%${search.toLowerCase()}%`;
+      return await db.select().from(suppliers)
+        .where(
+          and(
+            eq(suppliers.isActive, true),
+            or(
+              sql`LOWER(${suppliers.name}) LIKE ${searchPattern}`,
+              sql`LOWER(${suppliers.businessName}) LIKE ${searchPattern}`,
+              sql`${suppliers.taxId} LIKE ${searchPattern}`,
+              sql`${suppliers.phone} LIKE ${searchPattern}`
+            )
+          )
+        );
+    }
+    return await db.select().from(suppliers).where(eq(suppliers.isActive, true));
+  }
+
+  async getSupplier(id: number): Promise<Supplier | undefined> {
+    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
+    return supplier;
+  }
+
+  async getSupplierWithDetails(id: number): Promise<SupplierWithDetails | undefined> {
+    const supplier = await this.getSupplier(id);
+    if (!supplier) return undefined;
+
+    const discounts = await this.getSupplierDiscounts(id);
+    const summary = await this.getSupplierAccountSummary(id);
+
+    return {
+      ...supplier,
+      productDiscounts: discounts,
+      currentBalance: summary.currentBalance
+    };
+  }
+
+  async createSupplier(supplier: InsertSupplier): Promise<Supplier> {
+    const [newSupplier] = await db.insert(suppliers).values(supplier).returning();
+    return newSupplier;
+  }
+
+  async updateSupplier(id: number, updates: Partial<InsertSupplier>): Promise<Supplier> {
+    const [updated] = await db.update(suppliers).set({
+      ...updates,
+      updatedAt: new Date()
+    }).where(eq(suppliers.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSupplier(id: number): Promise<void> {
+    await db.update(suppliers).set({ isActive: false, updatedAt: new Date() }).where(eq(suppliers.id, id));
+  }
+
+  async searchSuppliers(query: string): Promise<Supplier[]> {
+    const searchPattern = `%${query.toLowerCase()}%`;
+    return await db.select().from(suppliers)
+      .where(
+        and(
+          eq(suppliers.isActive, true),
+          or(
+            sql`LOWER(${suppliers.name}) LIKE ${searchPattern}`,
+            sql`LOWER(${suppliers.businessName}) LIKE ${searchPattern}`,
+            sql`${suppliers.taxId} LIKE ${searchPattern}`,
+            sql`${suppliers.phone} LIKE ${searchPattern}`,
+            sql`${suppliers.whatsapp} LIKE ${searchPattern}`,
+            sql`LOWER(${suppliers.email}) LIKE ${searchPattern}`
+          )
+        )
+      );
+  }
+
+  // === Supplier Account (Cuenta Corriente) ===
+  async getSupplierMovements(supplierId: number): Promise<SupplierAccountMovement[]> {
+    return await db.select().from(supplierAccountMovements)
+      .where(eq(supplierAccountMovements.supplierId, supplierId))
+      .orderBy(desc(supplierAccountMovements.createdAt));
+  }
+
+  async getSupplierAccountSummary(supplierId: number): Promise<SupplierAccountSummary> {
+    const supplier = await this.getSupplier(supplierId);
+    const movements = await this.getSupplierMovements(supplierId);
+
+    let totalDebit = 0;
+    let totalCredit = 0;
+
+    for (const mov of movements) {
+      if (mov.type === 'debit') {
+        totalDebit += Number(mov.amount);
+      } else {
+        totalCredit += Number(mov.amount);
+      }
+    }
+
+    return {
+      supplierId,
+      supplierName: supplier?.name || '',
+      totalDebit,
+      totalCredit,
+      currentBalance: totalDebit - totalCredit,
+      movements
+    };
+  }
+
+  async createSupplierMovement(userId: string, request: CreateSupplierMovementRequest): Promise<SupplierAccountMovement> {
+    const summary = await this.getSupplierAccountSummary(request.supplierId);
+    const newBalance = request.type === 'debit' 
+      ? summary.currentBalance + request.amount 
+      : summary.currentBalance - request.amount;
+
+    const [movement] = await db.insert(supplierAccountMovements).values({
+      supplierId: request.supplierId,
+      type: request.type,
+      amount: String(request.amount),
+      balance: String(newBalance),
+      concept: request.concept,
+      referenceType: request.referenceType,
+      referenceId: request.referenceId,
+      documentNumber: request.documentNumber,
+      dueDate: request.dueDate ? new Date(request.dueDate) : null,
+      notes: request.notes,
+      userId
+    }).returning();
+
+    return movement;
+  }
+
+  // === Supplier Product Discounts ===
+  async getSupplierDiscounts(supplierId: number): Promise<SupplierProductDiscount[]> {
+    return await db.select().from(supplierProductDiscounts)
+      .where(and(
+        eq(supplierProductDiscounts.supplierId, supplierId),
+        eq(supplierProductDiscounts.isActive, true)
+      ));
+  }
+
+  async createSupplierDiscount(discount: InsertSupplierDiscount): Promise<SupplierProductDiscount> {
+    const [newDiscount] = await db.insert(supplierProductDiscounts).values(discount).returning();
+    return newDiscount;
+  }
+
+  async updateSupplierDiscount(id: number, updates: Partial<InsertSupplierDiscount>): Promise<SupplierProductDiscount> {
+    const [updated] = await db.update(supplierProductDiscounts)
+      .set(updates)
+      .where(eq(supplierProductDiscounts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSupplierDiscount(id: number): Promise<void> {
+    await db.update(supplierProductDiscounts)
+      .set({ isActive: false })
+      .where(eq(supplierProductDiscounts.id, id));
   }
 }
 

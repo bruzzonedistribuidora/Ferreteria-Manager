@@ -80,6 +80,67 @@ export const clientAccountMovements = pgTable("client_account_movements", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// === SUPPLIERS (PROVEEDORES) ===
+export const suppliers = pgTable("suppliers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  businessName: text("business_name"), // Razón social
+  email: text("email"),
+  phone: text("phone"),
+  whatsapp: text("whatsapp"),
+  address: text("address"),
+  city: text("city"),
+  province: text("province"),
+  postalCode: text("postal_code"),
+  taxId: text("tax_id"), // CUIT/CUIL/DNI
+  taxCondition: text("tax_condition").default("responsable_inscripto"),
+  defaultDiscountPercent: numeric("default_discount_percent", { precision: 5, scale: 2 }).default("0"),
+  paymentTermDays: integer("payment_term_days").default(30), // Días para pago
+  bankName: text("bank_name"),
+  bankAccountNumber: text("bank_account_number"),
+  bankCbu: text("bank_cbu"),
+  bankAlias: text("bank_alias"),
+  contactName: text("contact_name"), // Nombre del contacto principal
+  contactPhone: text("contact_phone"),
+  contactEmail: text("contact_email"),
+  notes: text("notes"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// === SUPPLIER ACCOUNT MOVEMENTS (Cuenta corriente proveedor) ===
+export const supplierAccountMovements = pgTable("supplier_account_movements", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
+  type: text("type").notNull(), // debit (debe - lo que les debemos), credit (haber - pagos realizados)
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  balance: numeric("balance", { precision: 12, scale: 2 }).notNull(), // Running balance
+  concept: text("concept").notNull(),
+  referenceType: text("reference_type"), // purchase_order, payment, adjustment
+  referenceId: integer("reference_id"),
+  documentNumber: text("document_number"), // Número de factura proveedor
+  dueDate: timestamp("due_date"), // Fecha de vencimiento
+  notes: text("notes"),
+  userId: text("user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === SUPPLIER PRODUCT DISCOUNTS (Descuentos por artículo) ===
+export const supplierProductDiscounts = pgTable("supplier_product_discounts", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
+  productId: integer("product_id").references(() => products.id), // null = aplica a todos
+  categoryId: integer("category_id").references(() => categories.id), // null = aplica a todos
+  discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull(),
+  minQuantity: integer("min_quantity").default(1), // Cantidad mínima para aplicar descuento
+  validFrom: timestamp("valid_from"),
+  validTo: timestamp("valid_to"),
+  notes: text("notes"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // === SALES ===
 export const sales = pgTable("sales", {
   id: serial("id").primaryKey(),
@@ -231,6 +292,34 @@ export const clientAccountMovementRelations = relations(clientAccountMovements, 
   }),
 }));
 
+// === SUPPLIER RELATIONS ===
+export const supplierRelations = relations(suppliers, ({ many }) => ({
+  accountMovements: many(supplierAccountMovements),
+  productDiscounts: many(supplierProductDiscounts),
+}));
+
+export const supplierAccountMovementRelations = relations(supplierAccountMovements, ({ one }) => ({
+  supplier: one(suppliers, {
+    fields: [supplierAccountMovements.supplierId],
+    references: [suppliers.id],
+  }),
+}));
+
+export const supplierProductDiscountRelations = relations(supplierProductDiscounts, ({ one }) => ({
+  supplier: one(suppliers, {
+    fields: [supplierProductDiscounts.supplierId],
+    references: [suppliers.id],
+  }),
+  product: one(products, {
+    fields: [supplierProductDiscounts.productId],
+    references: [products.id],
+  }),
+  category: one(categories, {
+    fields: [supplierProductDiscounts.categoryId],
+    references: [categories.id],
+  }),
+}));
+
 // === ZOD SCHEMAS ===
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true });
@@ -242,6 +331,9 @@ export const insertDeliveryNoteItemSchema = createInsertSchema(deliveryNoteItems
 export const insertPreInvoiceSchema = createInsertSchema(preInvoices).omit({ id: true, preInvoiceNumber: true, userId: true, createdAt: true, reviewedAt: true, reviewedBy: true });
 export const insertAuthorizedContactSchema = createInsertSchema(clientAuthorizedContacts).omit({ id: true, createdAt: true });
 export const insertAccountMovementSchema = createInsertSchema(clientAccountMovements).omit({ id: true, createdAt: true });
+export const insertSupplierSchema = createInsertSchema(suppliers).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSupplierMovementSchema = createInsertSchema(supplierAccountMovements).omit({ id: true, createdAt: true });
+export const insertSupplierDiscountSchema = createInsertSchema(supplierProductDiscounts).omit({ id: true, createdAt: true });
 
 // === API TYPES ===
 export type Product = typeof products.$inferSelect;
@@ -255,6 +347,9 @@ export type PreInvoice = typeof preInvoices.$inferSelect;
 export type PreInvoiceDeliveryNote = typeof preInvoiceDeliveryNotes.$inferSelect;
 export type ClientAuthorizedContact = typeof clientAuthorizedContacts.$inferSelect;
 export type ClientAccountMovement = typeof clientAccountMovements.$inferSelect;
+export type Supplier = typeof suppliers.$inferSelect;
+export type SupplierAccountMovement = typeof supplierAccountMovements.$inferSelect;
+export type SupplierProductDiscount = typeof supplierProductDiscounts.$inferSelect;
 
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type InsertClient = z.infer<typeof insertClientSchema>;
@@ -348,3 +443,34 @@ export type CreateAccountMovementRequest = {
   documentNumber?: string;
   notes?: string;
 };
+
+// === SUPPLIER TYPES ===
+export type SupplierWithDetails = Supplier & {
+  productDiscounts: SupplierProductDiscount[];
+  currentBalance: number;
+};
+
+export type SupplierAccountSummary = {
+  supplierId: number;
+  supplierName: string;
+  totalDebit: number;
+  totalCredit: number;
+  currentBalance: number;
+  movements: SupplierAccountMovement[];
+};
+
+export type CreateSupplierMovementRequest = {
+  supplierId: number;
+  type: "debit" | "credit";
+  amount: number;
+  concept: string;
+  referenceType?: string;
+  referenceId?: number;
+  documentNumber?: string;
+  dueDate?: string;
+  notes?: string;
+};
+
+export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
+export type InsertSupplierMovement = z.infer<typeof insertSupplierMovementSchema>;
+export type InsertSupplierDiscount = z.infer<typeof insertSupplierDiscountSchema>;

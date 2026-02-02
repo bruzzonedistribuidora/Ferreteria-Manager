@@ -182,6 +182,147 @@ export async function registerRoutes(
     }
   });
 
+  // === Suppliers Routes ===
+  app.get("/api/suppliers", isAuthenticated, async (req, res) => {
+    const search = req.query.search as string | undefined;
+    const suppliers = await storage.getSuppliers(search);
+    res.json(suppliers);
+  });
+
+  app.get("/api/suppliers/:id", isAuthenticated, async (req, res) => {
+    const supplier = await storage.getSupplier(Number(req.params.id));
+    if (!supplier) return res.status(404).json({ message: "Supplier not found" });
+    res.json(supplier);
+  });
+
+  app.get("/api/suppliers/:id/details", isAuthenticated, async (req, res) => {
+    const supplier = await storage.getSupplierWithDetails(Number(req.params.id));
+    if (!supplier) return res.status(404).json({ message: "Supplier not found" });
+    res.json(supplier);
+  });
+
+  app.post("/api/suppliers", isAuthenticated, async (req, res) => {
+    try {
+      const supplierSchema = z.object({
+        name: z.string().min(1),
+        businessName: z.string().optional(),
+        email: z.string().email().optional().or(z.literal("")),
+        phone: z.string().optional(),
+        whatsapp: z.string().optional(),
+        address: z.string().optional(),
+        city: z.string().optional(),
+        province: z.string().optional(),
+        postalCode: z.string().optional(),
+        taxId: z.string().optional(),
+        taxCondition: z.string().optional(),
+        defaultDiscountPercent: z.string().optional(),
+        paymentTermDays: z.number().optional(),
+        bankName: z.string().optional(),
+        bankAccountNumber: z.string().optional(),
+        bankCbu: z.string().optional(),
+        bankAlias: z.string().optional(),
+        contactName: z.string().optional(),
+        contactPhone: z.string().optional(),
+        contactEmail: z.string().email().optional().or(z.literal("")),
+        notes: z.string().optional()
+      });
+      const input = supplierSchema.parse(req.body);
+      const supplier = await storage.createSupplier(input);
+      res.status(201).json(supplier);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put("/api/suppliers/:id", isAuthenticated, async (req, res) => {
+    const supplier = await storage.updateSupplier(Number(req.params.id), req.body);
+    res.json(supplier);
+  });
+
+  app.delete("/api/suppliers/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteSupplier(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // === Supplier Account Routes ===
+  app.get("/api/suppliers/:supplierId/account", isAuthenticated, async (req, res) => {
+    const summary = await storage.getSupplierAccountSummary(Number(req.params.supplierId));
+    res.json(summary);
+  });
+
+  app.get("/api/suppliers/:supplierId/movements", isAuthenticated, async (req, res) => {
+    const movements = await storage.getSupplierMovements(Number(req.params.supplierId));
+    res.json(movements);
+  });
+
+  app.post("/api/suppliers/:supplierId/movements", isAuthenticated, async (req, res) => {
+    try {
+      const movementSchema = z.object({
+        type: z.enum(["debit", "credit"]),
+        amount: z.number().positive(),
+        concept: z.string().min(1),
+        referenceType: z.string().optional(),
+        referenceId: z.number().optional(),
+        documentNumber: z.string().optional(),
+        dueDate: z.string().optional(),
+        notes: z.string().optional()
+      });
+      const input = movementSchema.parse(req.body);
+      const user = req.user as any;
+      const movement = await storage.createSupplierMovement(user.claims.sub, {
+        ...input,
+        supplierId: Number(req.params.supplierId)
+      });
+      res.status(201).json(movement);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  // === Supplier Product Discounts Routes ===
+  app.get("/api/suppliers/:supplierId/discounts", isAuthenticated, async (req, res) => {
+    const discounts = await storage.getSupplierDiscounts(Number(req.params.supplierId));
+    res.json(discounts);
+  });
+
+  app.post("/api/suppliers/:supplierId/discounts", isAuthenticated, async (req, res) => {
+    try {
+      const discountSchema = z.object({
+        productId: z.number().optional(),
+        categoryId: z.number().optional(),
+        discountPercent: z.string(),
+        minQuantity: z.number().optional(),
+        validFrom: z.string().optional(),
+        validTo: z.string().optional(),
+        notes: z.string().optional()
+      });
+      const input = discountSchema.parse(req.body);
+      const discount = await storage.createSupplierDiscount({
+        ...input,
+        supplierId: Number(req.params.supplierId),
+        validFrom: input.validFrom ? new Date(input.validFrom) : undefined,
+        validTo: input.validTo ? new Date(input.validTo) : undefined
+      });
+      res.status(201).json(discount);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.delete("/api/discounts/:id", isAuthenticated, async (req, res) => {
+    await storage.deleteSupplierDiscount(Number(req.params.id));
+    res.status(204).send();
+  });
+
   // === Sales Routes ===
   app.post(api.sales.create.path, isAuthenticated, async (req, res) => {
     const input = api.sales.create.input.parse(req.body);
