@@ -1,0 +1,114 @@
+modulo ventas: poder vender tanto como facturado (arca) como ingreso de venta. tambien que pueda transformar al venta en remito o presupuesto.
+forma de pago: (configurable en configuracion de la empresa) efectivo, tarjeta credito/debito, transferencia, posnet, cheque/echeq
+
+modulo usuarios:
+poder agregar usuarios con roles derterminados.
+
+modulo de clientes:
+
+alta de cliente con todos los datos necesarios para contactarnos, agregame busqueda de datos atraz de numero de cuit. que tenga contacto de whatssap y email para enviarles comprobantes, si tienen descuento especial, si maneja una lista de precios especial, solapa de autorizados, que tenga un boton para ir directo a la cuenta corriente.
+
+dentro de la cuenta corriente se pueda ver todos los comprobantes que tiene, y poder ver dentro de los comprobantes, que halla boton de recibo.
+
+
+modulo de provedor: todos los datos necesarios y agregar descuentos, los cuales se ven reflejados en los articulos que pertenecen al mismo provedor.
+agregar saldo a provedores.
+
+
+modulo cajas: agregar distintas cajas, las que me permita hacer movimientos entre si, y seleccionar a que caja va el dinero de cierre de caja. que podamos ver los moviientos de ingreso o egreso de dinero y porque medio fue realizado.
+cartera de cheques y echeq con todos los datos necesarios y que el sistema tenga alarma de fechas por vencer.
+
+quiero poder agregar formas de cobro y pago, poder agregar cuentas donde se depositaria el dinero.
+en caso de tarjetas de debito configurar regargos, y credito cuotas con recargos (poder ingresar link de pagina del formato para que tome recargos que tienen cada cuota)
+poder ofrecer cuotas propias.
+
+modulo informes: aca debe aparecer todos los informes de venta y compra, podemos ver varios informes como venta por dia, por mes , por año.
+
+iva compra y venta.. que calcule la diferencia.
+
+modulo compra: alli encontramos todo lo que tiene que ver con carga de facturas o compra, en este modulo tenemos la carga manual de factura, donde nos permita actualizar costos o no. quiero poder agregar descuento de factura y otro descuento que solo es para cuenta corriente, no deberia verse reflejado con el iva ya que son descuentos extras, pero no quiero que afecte al iva.
+
+y por otro lado la lectura de foto o pdf de facturas mediante ia, donde pueda leerme y cargarme toda la factura de compra
+
+modulo fidelizacion: este modulo es para los clientes finales, de mostrador que con cada compra  suman puntos y pueden entrar a un link con su dni o cuit para ver cuantos puntos tienen acumulado y poder canjeralos. alli mismo poder ingresar cupones y ofertas.
+
+modulo de e-commerce: creacion de tienda online, similar a tienda nube, que podamos ir cargando los articulos que necesitemos, y los clientes puedan entrar, crear cuenta y comprar.
+
+modulo impresion: aca configuraremos los distintos formatos e informacion segun cada reporte, es importante dar medidas de hoja y informacion a mostrar.
+
+modulo etiqueta: que nos pueda crear formatos de etiqueta de los productos, poder elegir un producto y con los datos realizar etiquetas.
+
+modulo actualizacion de precios:
+este modulo necesito para actualizar los costos de los productos con las listas de precios que me mandan los provedores. no se si dentro del sistema u otro aparte que se sincronice con este.
+lo que necesito y te voy haciendo paso por paso:
+1- elejir un provedor que tengo quie actualizar
+2- configurar una plantilla de lectura, decirle al sistema que de ese provedor el archivo de excel que tengo que importar en la columna A es codigo provedor, columna B desripcion y columna C precio. (cada lista de provedor es distinta) y guardar plantilla.
+3- una vez hcreado la planilla (con opcion a editar) cargar archivo de excel
+4- me muestre una vista previa para costatar que las comunas estan bien leidas
+5-analisis de la actualizacion, cuantos articulos se actualizaron, cuantos hay discontinuados (tienen el codigo del provedor pero ya no estan mas en la lista, que porcentaje de variacion hubo, positiva o negativa en cada articulo segun ultimo precio.
+6- aceptacion de actualizacion
+
+modulo carga masiva inicial:
+para poder cargar a tarvez de archivo de excel los productos que saque del sistema anterior a este, con la opcion de cargar a travez de codigo propio, como codigo de barra o codigo provedor.
+
+modulo finanzas: alli encontramos toda la informacion del negocio traducida en numeros. contabilidad, chashflow, punto equilobrio, etc... para ello tengo un sistema aparte que lo podemos vincular o no, que lo creemos aca. paso link para copiar https://bruzzonedistribuidora.github.io/finanzas/
+esto me muestra como esta el negocio y esta siendo rentable o no. viendo los numero necesito que me calcule de lo neto que porcentaje saco para ahorro o inversion cada 15 dias.
+
+modulo usuarios y roles
+
+necesito un acceso a todos los modulos con opcion de activar o desactivar modulos, esto es para cuando ofresco este sistema segun el plan que pagaron tienen activos algunos pero otros no
+
+agregar descuento aplicables a los producto del mismo provedor
+
+modulo pedidos de compra: lo usariamos para armar pedido por mercaderia o servicias a realizar, luego tenga para pasarlo de por ahcer a realizado a cobrado
+
+carga masiva para clientes, marcas, rubro, y provedores
+
+-----------------------------MODULOS FALTANTES----------------------------------------------------------------
+
+vamos con provedor, estos son importantes porque puede tener descuentos que se pueden o aplicar a los articulos vinculados.
+
+agregar a la hora de cobrar pago mixto
+
+EN VENTAS NECESITO TENES MOVIMEITNOS DE VENTAS,VER VENTAS FACTURADAS O INGRESOS DE VENTAS
+
+MODULO REMITOS.. QUE SEPARE EN CARPETAS REMITOS POR FACTURAR Y REMITOS FACTURADOS
+
+MODULO LISTAS DE PRECIO, ALLI CREAMOS DISTINTAS LISTASE EN BASE A UNA O NUEVA INDEPENDIENTE
+
+modulo informes: aca debe aparecer todos los informes de venta y compra, podemos ver varios informes como venta por dia, por mes , por año.
+
+iva compra y venta.. que calcule la diferencia.
+
+SUCURSALES O DEPOSITOS.. STOCK DE CADA UNA Y MOVIMIENTOS DE MERCADERIA ENTRE SI
+
+modulo compra: alli encontramos todo lo que tiene que ver con carga de facturas o compra, en este modulo tenemos la carga manual de factura, donde nos permita actualizar costos o no. quiero poder agregar descuento de factura y otro descuento que solo es para cuenta corriente, no deberia verse reflejado con el iva ya que son descuentos extras, pero no quiero que afecte al iva.
+
+y por otro lado la lectura de foto o pdf de facturas mediante ia, donde pueda leerme y cargarme toda la factura de compra
+
+
+modulo de e-commerce: creacion de tienda online, similar a tienda nube, que podamos ir cargando los articulos que necesitemos, y los clientes puedan entrar, crear cuenta y comprar.
+
+modulo pedidos de compra: lo usariamos para armar pedido por mercaderia o servicias a realizar, luego tenga para pasarlo de por ahcer a realizado a cobrado
+
+modulo fidelizacion: este modulo es para los clientes finales, de mostrador que con cada compra  suman puntos y pueden entrar a un link con su dni o cuit para ver cuantos puntos tienen acumulado y poder canjeralos. alli mismo poder ingresar cupones y ofertas.
+
+modulo de e-commerce: creacion de tienda online, similar a tienda nube, que podamos ir cargando los articulos que necesitemos, y los clientes puedan entrar, crear cuenta y comprar.
+
+
+Para los que utilicen la integración con Mercadolibre, a partir de hoy podrán enviar precios mayoristas a sus publicaciones (siempre y cuando tengan habilitada ésta posibilidad en sus cuentas de Mercadolibre).
+
+ 
+
+El procedimiento es el siguiente:
+
+Al ingresar o editar un Item, en la solapa Mercadolibre, verán el botón "PRECIOS MAYORISTAS" a la derecha de cada publicación.
+Presionando éste botón se abrirá una pantalla donde podrán asignar hasta 5 descuentos por cantidades mínimas. Los datos que solicitará son:
+Cantidad Mínima del Producto.
+Bonificación sobre el Precio de Venta Seleccionado.
+Ejemplo: 10 unidades, 10,00% de bonificación.
+         15 unidades, 12,00% de bonificación.
+         20 unidades, 14,00% de bonificación.
+Guardar los cambios en el Item.
+Una vez realizado estos pasos, podrán enviar como siempre los precios a Mercadolibre presionando el botón "ACTUALIZAR MERCADOLIBRE".
+Se enviará la cantidad mínima y el precio descontado según la bonificación asignada y la lista de precios configurada al ejecutar el proceso.
