@@ -1782,5 +1782,174 @@ export async function registerRoutes(
     }
   });
 
+  // === PURCHASE ORDERS ROUTES ===
+  app.get("/api/purchase-orders", isAuthenticated, async (req, res) => {
+    const orders = await storage.getPurchaseOrders();
+    res.json(orders);
+  });
+
+  app.post("/api/purchase-orders", isAuthenticated, async (req, res) => {
+    try {
+      const { items, ...orderData } = req.body;
+      const order = await storage.createPurchaseOrder(orderData, items || []);
+      res.status(201).json(order);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al crear pedido" });
+    }
+  });
+
+  app.patch("/api/purchase-orders/:id/status", isAuthenticated, async (req, res) => {
+    try {
+      const order = await storage.updatePurchaseOrderStatus(Number(req.params.id), req.body.status);
+      res.json(order);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al actualizar estado" });
+    }
+  });
+
+  // === QUOTES ROUTES ===
+  app.get("/api/quotes", isAuthenticated, async (req, res) => {
+    const quotes = await storage.getQuotes();
+    res.json(quotes);
+  });
+
+  app.post("/api/quotes", isAuthenticated, async (req, res) => {
+    try {
+      const { items, ...quoteData } = req.body;
+      const quote = await storage.createQuote(quoteData, items || []);
+      res.status(201).json(quote);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al crear cotización" });
+    }
+  });
+
+  app.patch("/api/quotes/:id/status", isAuthenticated, async (req, res) => {
+    try {
+      const quote = await storage.updateQuoteStatus(Number(req.params.id), req.body.status);
+      res.json(quote);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al actualizar estado" });
+    }
+  });
+
+  app.post("/api/quotes/:id/convert", isAuthenticated, async (req, res) => {
+    try {
+      const result = await storage.convertQuoteToSale(Number(req.params.id));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al convertir cotización" });
+    }
+  });
+
+  // === CUSTOMER ORDERS ROUTES ===
+  app.get("/api/customer-orders", isAuthenticated, async (req, res) => {
+    const orders = await storage.getCustomerOrders();
+    res.json(orders);
+  });
+
+  app.post("/api/customer-orders", isAuthenticated, async (req, res) => {
+    try {
+      const { items, ...orderData } = req.body;
+      const order = await storage.createCustomerOrder(orderData, items || []);
+      res.status(201).json(order);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al crear pedido" });
+    }
+  });
+
+  app.patch("/api/customer-orders/:id/status", isAuthenticated, async (req, res) => {
+    try {
+      const order = await storage.updateCustomerOrderStatus(Number(req.params.id), req.body.status);
+      res.json(order);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al actualizar estado" });
+    }
+  });
+
+  app.post("/api/customer-orders/:id/convert", isAuthenticated, async (req, res) => {
+    try {
+      const result = await storage.convertCustomerOrderToSale(Number(req.params.id));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al facturar pedido" });
+    }
+  });
+
+  // === PRICE LISTS ROUTES ===
+  app.get("/api/price-lists", isAuthenticated, async (req, res) => {
+    const lists = await storage.getPriceLists();
+    res.json(lists);
+  });
+
+  app.post("/api/price-lists", isAuthenticated, async (req, res) => {
+    try {
+      const list = await storage.createPriceList(req.body);
+      res.status(201).json(list);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al crear lista" });
+    }
+  });
+
+  app.patch("/api/price-lists/:id", isAuthenticated, async (req, res) => {
+    try {
+      const list = await storage.updatePriceList(Number(req.params.id), req.body);
+      res.json(list);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al actualizar lista" });
+    }
+  });
+
+  // === LOYALTY PROGRAM ROUTES ===
+  app.get("/api/loyalty-program", isAuthenticated, async (req, res) => {
+    const program = await storage.getLoyaltyProgram();
+    res.json(program || {});
+  });
+
+  app.put("/api/loyalty-program", isAuthenticated, async (req, res) => {
+    try {
+      const program = await storage.saveLoyaltyProgram(req.body);
+      res.json(program);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al guardar programa" });
+    }
+  });
+
+  app.get("/api/clients-with-points", isAuthenticated, async (req, res) => {
+    const clients = await storage.getClientsWithPoints();
+    res.json(clients);
+  });
+
+  // === BALANCES ROUTES ===
+  app.get("/api/clients-with-balance", isAuthenticated, async (req, res) => {
+    const clients = await storage.getClientsWithBalance();
+    res.json(clients);
+  });
+
+  app.get("/api/suppliers-with-balance", isAuthenticated, async (req, res) => {
+    const suppliers = await storage.getSuppliersWithBalance();
+    res.json(suppliers);
+  });
+
+  // === STOCK ADJUSTMENTS ROUTE ===
+  app.post("/api/stock-adjustments", isAuthenticated, async (req, res) => {
+    try {
+      const result = await storage.createStockAdjustment(req.body);
+      res.status(201).json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al ajustar stock" });
+    }
+  });
+
+  // === BULK UPDATE PRODUCTS ===
+  app.post("/api/products/bulk-update", isAuthenticated, async (req, res) => {
+    try {
+      const { productIds, editType, value } = req.body;
+      const result = await storage.bulkUpdateProducts(productIds, editType, value);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error en actualización masiva" });
+    }
+  });
+
   return httpServer;
 }

@@ -1159,3 +1159,234 @@ export type InsertShoppingCart = z.infer<typeof insertShoppingCartSchema>;
 export type EcommerceOrderWithItems = EcommerceOrder & {
   items: EcommerceOrderItem[];
 };
+
+// =====================
+// PURCHASE ORDERS (Pedidos de Compra a Proveedores)
+// =====================
+
+export const purchaseOrders = pgTable("purchase_orders", {
+  id: serial("id").primaryKey(),
+  orderNumber: text("order_number").notNull().unique(),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
+  userId: text("user_id").references(() => users.id),
+  status: text("status").default("draft"), // draft, sent, confirmed, partial, received, cancelled
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).default("0"),
+  discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).default("0"),
+  discountAmount: numeric("discount_amount", { precision: 12, scale: 2 }).default("0"),
+  taxAmount: numeric("tax_amount", { precision: 12, scale: 2 }).default("0"),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
+  currency: text("currency").default("ARS"),
+  expectedDeliveryDate: timestamp("expected_delivery_date"),
+  receivedDate: timestamp("received_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const purchaseOrderItems = pgTable("purchase_order_items", {
+  id: serial("id").primaryKey(),
+  purchaseOrderId: integer("purchase_order_id").notNull().references(() => purchaseOrders.id),
+  productId: integer("product_id").references(() => products.id),
+  productSku: text("product_sku"),
+  productName: text("product_name").notNull(),
+  quantity: numeric("quantity", { precision: 10, scale: 3 }).notNull(),
+  quantityReceived: numeric("quantity_received", { precision: 10, scale: 3 }).default("0"),
+  unitCost: numeric("unit_cost", { precision: 12, scale: 2 }).notNull(),
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
+});
+
+// =====================
+// QUOTES (Cotizaciones/Presupuestos Formales)
+// =====================
+
+export const quotes = pgTable("quotes", {
+  id: serial("id").primaryKey(),
+  quoteNumber: text("quote_number").notNull().unique(),
+  clientId: integer("client_id").references(() => clients.id),
+  userId: text("user_id").references(() => users.id),
+  clientName: text("client_name"),
+  clientEmail: text("client_email"),
+  clientPhone: text("client_phone"),
+  status: text("status").default("draft"), // draft, sent, accepted, rejected, expired, converted
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).default("0"),
+  discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).default("0"),
+  discountAmount: numeric("discount_amount", { precision: 12, scale: 2 }).default("0"),
+  taxAmount: numeric("tax_amount", { precision: 12, scale: 2 }).default("0"),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
+  validUntil: timestamp("valid_until"),
+  notes: text("notes"),
+  terms: text("terms"),
+  convertedToSaleId: integer("converted_to_sale_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const quoteItems = pgTable("quote_items", {
+  id: serial("id").primaryKey(),
+  quoteId: integer("quote_id").notNull().references(() => quotes.id),
+  productId: integer("product_id").references(() => products.id),
+  productSku: text("product_sku"),
+  productName: text("product_name").notNull(),
+  quantity: numeric("quantity", { precision: 10, scale: 3 }).notNull(),
+  unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
+});
+
+// =====================
+// CUSTOMER ORDERS (Pedidos de Clientes)
+// =====================
+
+export const customerOrders = pgTable("customer_orders", {
+  id: serial("id").primaryKey(),
+  orderNumber: text("order_number").notNull().unique(),
+  clientId: integer("client_id").references(() => clients.id),
+  userId: text("user_id").references(() => users.id),
+  status: text("status").default("pending"), // pending, confirmed, processing, ready, delivered, cancelled
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).default("0"),
+  discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).default("0"),
+  discountAmount: numeric("discount_amount", { precision: 12, scale: 2 }).default("0"),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
+  paymentMethod: text("payment_method"),
+  paymentStatus: text("payment_status").default("pending"), // pending, partial, paid
+  depositAmount: numeric("deposit_amount", { precision: 12, scale: 2 }).default("0"),
+  expectedDate: timestamp("expected_date"),
+  deliveredAt: timestamp("delivered_at"),
+  notes: text("notes"),
+  convertedToSaleId: integer("converted_to_sale_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const customerOrderItems = pgTable("customer_order_items", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").notNull().references(() => customerOrders.id),
+  productId: integer("product_id").references(() => products.id),
+  productSku: text("product_sku"),
+  productName: text("product_name").notNull(),
+  quantity: numeric("quantity", { precision: 10, scale: 3 }).notNull(),
+  unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
+});
+
+// =====================
+// LOYALTY PROGRAM (Fidelización)
+// =====================
+
+export const loyaltyProgram = pgTable("loyalty_program", {
+  id: serial("id").primaryKey(),
+  name: text("name").default("Programa de Puntos"),
+  pointsPerCurrency: numeric("points_per_currency", { precision: 8, scale: 4 }).default("1"), // 1 punto por cada $X
+  currencyPerPoint: numeric("currency_per_point", { precision: 8, scale: 4 }).default("0.01"), // $0.01 por punto
+  minPointsRedemption: integer("min_points_redemption").default(100),
+  maxDiscountPercent: numeric("max_discount_percent", { precision: 5, scale: 2 }).default("10"),
+  isActive: boolean("is_active").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const clientLoyaltyPoints = pgTable("client_loyalty_points", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id),
+  points: integer("points").default(0),
+  totalEarned: integer("total_earned").default(0),
+  totalRedeemed: integer("total_redeemed").default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const loyaltyTransactions = pgTable("loyalty_transactions", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id),
+  type: text("type").notNull(), // earn, redeem, expire, adjust
+  points: integer("points").notNull(),
+  balanceAfter: integer("balance_after").notNull(),
+  referenceType: text("reference_type"), // sale, manual
+  referenceId: integer("reference_id"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// =====================
+// PRICE LISTS (Listas de Precios)
+// =====================
+
+export const priceLists = pgTable("price_lists", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  code: text("code").unique(),
+  description: text("description"),
+  type: text("type").default("percentage"), // percentage, fixed
+  adjustmentPercent: numeric("adjustment_percent", { precision: 5, scale: 2 }).default("0"),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  validFrom: timestamp("valid_from"),
+  validTo: timestamp("valid_to"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const priceListItems = pgTable("price_list_items", {
+  id: serial("id").primaryKey(),
+  priceListId: integer("price_list_id").notNull().references(() => priceLists.id),
+  productId: integer("product_id").references(() => products.id),
+  categoryId: integer("category_id").references(() => categories.id),
+  customPrice: numeric("custom_price", { precision: 12, scale: 2 }),
+  adjustmentPercent: numeric("adjustment_percent", { precision: 5, scale: 2 }),
+});
+
+// Insert Schemas for new tables
+export const insertPurchaseOrderSchema = createInsertSchema(purchaseOrders).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPurchaseOrderItemSchema = createInsertSchema(purchaseOrderItems).omit({ id: true });
+export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertQuoteItemSchema = createInsertSchema(quoteItems).omit({ id: true });
+export const insertCustomerOrderSchema = createInsertSchema(customerOrders).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCustomerOrderItemSchema = createInsertSchema(customerOrderItems).omit({ id: true });
+export const insertLoyaltyProgramSchema = createInsertSchema(loyaltyProgram).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertClientLoyaltyPointsSchema = createInsertSchema(clientLoyaltyPoints).omit({ id: true, updatedAt: true });
+export const insertLoyaltyTransactionSchema = createInsertSchema(loyaltyTransactions).omit({ id: true, createdAt: true });
+export const insertPriceListSchema = createInsertSchema(priceLists).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPriceListItemSchema = createInsertSchema(priceListItems).omit({ id: true });
+
+// Types for new tables
+export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
+export type PurchaseOrderItem = typeof purchaseOrderItems.$inferSelect;
+export type Quote = typeof quotes.$inferSelect;
+export type QuoteItem = typeof quoteItems.$inferSelect;
+export type CustomerOrder = typeof customerOrders.$inferSelect;
+export type CustomerOrderItem = typeof customerOrderItems.$inferSelect;
+export type LoyaltyProgram = typeof loyaltyProgram.$inferSelect;
+export type ClientLoyaltyPoints = typeof clientLoyaltyPoints.$inferSelect;
+export type LoyaltyTransaction = typeof loyaltyTransactions.$inferSelect;
+export type PriceList = typeof priceLists.$inferSelect;
+export type PriceListItem = typeof priceListItems.$inferSelect;
+
+export type InsertPurchaseOrder = z.infer<typeof insertPurchaseOrderSchema>;
+export type InsertPurchaseOrderItem = z.infer<typeof insertPurchaseOrderItemSchema>;
+export type InsertQuote = z.infer<typeof insertQuoteSchema>;
+export type InsertQuoteItem = z.infer<typeof insertQuoteItemSchema>;
+export type InsertCustomerOrder = z.infer<typeof insertCustomerOrderSchema>;
+export type InsertCustomerOrderItem = z.infer<typeof insertCustomerOrderItemSchema>;
+export type InsertLoyaltyProgram = z.infer<typeof insertLoyaltyProgramSchema>;
+export type InsertClientLoyaltyPoints = z.infer<typeof insertClientLoyaltyPointsSchema>;
+export type InsertLoyaltyTransaction = z.infer<typeof insertLoyaltyTransactionSchema>;
+export type InsertPriceList = z.infer<typeof insertPriceListSchema>;
+export type InsertPriceListItem = z.infer<typeof insertPriceListItemSchema>;
+
+// Composite types
+export type PurchaseOrderWithDetails = PurchaseOrder & {
+  supplier: Supplier;
+  items: PurchaseOrderItem[];
+};
+
+export type QuoteWithDetails = Quote & {
+  client: Client | null;
+  items: QuoteItem[];
+};
+
+export type CustomerOrderWithDetails = CustomerOrder & {
+  client: Client | null;
+  items: CustomerOrderItem[];
+};
+
+export type PriceListWithItems = PriceList & {
+  items: PriceListItem[];
+};

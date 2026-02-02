@@ -20,17 +20,26 @@ import CashRegisters from "@/pages/CashRegisters";
 import Stock from "@/pages/Stock";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
-import { 
-  Quotes, Orders, Loyalty, StockAlerts, StockAdjustment, 
-  BulkEdit, PurchaseOrders, PriceLists,
-  Purchases, Balances, Installments, Finance, Reports, Integrations 
-} from "@/pages/ComingSoon";
 import Ecommerce from "@/pages/Ecommerce";
 import Store from "@/pages/Store";
 import ImportData from "@/pages/ImportData";
 import Settings from "@/pages/Settings";
 import BrandsCategories from "@/pages/BrandsCategories";
 import PriceUpdate from "@/pages/PriceUpdate";
+import StockAlerts from "@/pages/StockAlerts";
+import StockAdjustment from "@/pages/StockAdjustment";
+import PurchaseOrders from "@/pages/PurchaseOrders";
+import Quotes from "@/pages/Quotes";
+import Orders from "@/pages/Orders";
+import Balances from "@/pages/Balances";
+import PriceLists from "@/pages/PriceLists";
+import Loyalty from "@/pages/Loyalty";
+import Reports from "@/pages/Reports";
+import Finance from "@/pages/Finance";
+import BulkEdit from "@/pages/BulkEdit";
+import Integrations from "@/pages/Integrations";
+import PurchasesAI from "@/pages/PurchasesAI";
+import InternalInstallments from "@/pages/InternalInstallments";
 
 function PrivateRoute({ component: Component, ...rest }: any) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -110,9 +119,9 @@ function Router() {
       
       {/* ADMINISTRACIÓN & FINANZAS */}
       <Route path="/cash-registers" component={CashRegisters} />
-      <Route path="/purchases" component={Purchases} />
+      <Route path="/purchases" component={PurchasesAI} />
       <Route path="/balances" component={Balances} />
-      <Route path="/installments" component={Installments} />
+      <Route path="/installments" component={InternalInstallments} />
       <Route path="/finance" component={Finance} />
       <Route path="/reports" component={Reports} />
       <Route path="/users" component={Users} />

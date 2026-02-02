@@ -11,6 +11,9 @@ import {
   stockLocations, stockMovements, brands, warehouses, productWarehouseStock,
   supplierImportTemplates, priceUpdateLogs, companySettings, printSettings,
   ecommerceSettings, ecommerceOrders, ecommerceOrderItems, shoppingCarts,
+  purchaseOrders, purchaseOrderItems, quotes, quoteItems,
+  customerOrders, customerOrderItems, priceLists, priceListItems,
+  loyaltyProgram, clientLoyaltyPoints, loyaltyTransactions,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -47,7 +50,15 @@ import {
   type EcommerceSettings, type InsertEcommerceSettings,
   type EcommerceOrder, type InsertEcommerceOrder,
   type EcommerceOrderItem, type InsertEcommerceOrderItem,
-  type EcommerceOrderWithItems
+  type EcommerceOrderWithItems,
+  type PurchaseOrder, type InsertPurchaseOrder,
+  type PurchaseOrderItem, type InsertPurchaseOrderItem,
+  type Quote, type InsertQuote, type QuoteItem, type InsertQuoteItem,
+  type CustomerOrder, type InsertCustomerOrder,
+  type CustomerOrderItem, type InsertCustomerOrderItem,
+  type PriceList, type InsertPriceList,
+  type LoyaltyProgram, type InsertLoyaltyProgram,
+  type ClientLoyaltyPoints
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -2412,6 +2423,410 @@ export class DatabaseStorage implements IStorage {
         eq(products.isActive, true)
       ))
       .orderBy(products.name);
+  }
+
+  // === PURCHASE ORDERS ===
+  async getPurchaseOrders(): Promise<(PurchaseOrder & { supplier: Supplier })[]> {
+    const orders = await db.select().from(purchaseOrders)
+      .orderBy(desc(purchaseOrders.createdAt));
+    
+    const result = [];
+    for (const order of orders) {
+      const [supplier] = await db.select().from(suppliers)
+        .where(eq(suppliers.id, order.supplierId));
+      result.push({ ...order, supplier: supplier! });
+    }
+    return result;
+  }
+
+  async createPurchaseOrder(data: any, items: any[]): Promise<PurchaseOrder> {
+    const orderNumber = `PO-${Date.now().toString(36).toUpperCase()}-${nanoid(4).toUpperCase()}`;
+    const subtotal = items.reduce((sum, i) => sum + (Number(i.quantity) * Number(i.unitCost)), 0);
+    
+    const [order] = await db.insert(purchaseOrders)
+      .values({
+        orderNumber,
+        supplierId: data.supplierId,
+        notes: data.notes,
+        expectedDeliveryDate: data.expectedDeliveryDate ? new Date(data.expectedDeliveryDate) : null,
+        subtotal: subtotal.toString(),
+        totalAmount: subtotal.toString(),
+        status: 'draft'
+      })
+      .returning();
+
+    for (const item of items) {
+      await db.insert(purchaseOrderItems).values({
+        purchaseOrderId: order.id,
+        productId: item.productId,
+        productSku: item.productSku,
+        productName: item.productName,
+        quantity: item.quantity.toString(),
+        unitCost: item.unitCost.toString(),
+        subtotal: (item.quantity * item.unitCost).toString()
+      });
+    }
+
+    return order;
+  }
+
+  async updatePurchaseOrderStatus(id: number, status: string): Promise<PurchaseOrder> {
+    const [updated] = await db.update(purchaseOrders)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(purchaseOrders.id, id))
+      .returning();
+    return updated;
+  }
+
+  // === QUOTES ===
+  async getQuotes(): Promise<(Quote & { client: Client | null })[]> {
+    const allQuotes = await db.select().from(quotes)
+      .orderBy(desc(quotes.createdAt));
+    
+    const result = [];
+    for (const quote of allQuotes) {
+      let client = null;
+      if (quote.clientId) {
+        const [c] = await db.select().from(clients).where(eq(clients.id, quote.clientId));
+        client = c || null;
+      }
+      result.push({ ...quote, client });
+    }
+    return result;
+  }
+
+  async createQuote(data: any, items: any[]): Promise<Quote> {
+    const quoteNumber = `COT-${Date.now().toString(36).toUpperCase()}-${nanoid(4).toUpperCase()}`;
+    const subtotal = items.reduce((sum, i) => sum + (Number(i.quantity) * Number(i.unitPrice)), 0);
+    
+    const [quote] = await db.insert(quotes)
+      .values({
+        quoteNumber,
+        clientId: data.clientId || null,
+        clientName: data.clientName,
+        clientEmail: data.clientEmail,
+        clientPhone: data.clientPhone,
+        notes: data.notes,
+        validUntil: data.validUntil ? new Date(data.validUntil) : null,
+        subtotal: subtotal.toString(),
+        totalAmount: subtotal.toString(),
+        status: 'draft'
+      })
+      .returning();
+
+    for (const item of items) {
+      await db.insert(quoteItems).values({
+        quoteId: quote.id,
+        productId: item.productId,
+        productSku: item.productSku,
+        productName: item.productName,
+        quantity: item.quantity.toString(),
+        unitPrice: item.unitPrice.toString(),
+        subtotal: (item.quantity * item.unitPrice).toString()
+      });
+    }
+
+    return quote;
+  }
+
+  async updateQuoteStatus(id: number, status: string): Promise<Quote> {
+    const [updated] = await db.update(quotes)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(quotes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async convertQuoteToSale(quoteId: number): Promise<{ sale: Sale; quote: Quote }> {
+    const [quote] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
+    if (!quote) throw new Error("Cotización no encontrada");
+
+    const items = await db.select().from(quoteItems).where(eq(quoteItems.quoteId, quoteId));
+
+    // Create sale from quote
+    const saleRequest = {
+      clientId: quote.clientId,
+      paymentMethod: 'cash',
+      items: items.map(i => ({
+        productId: i.productId!,
+        quantity: Number(i.quantity),
+        unitPrice: Number(i.unitPrice),
+        discount: 0,
+        subtotal: Number(i.subtotal)
+      })),
+      subtotal: Number(quote.subtotal),
+      discount: 0,
+      total: Number(quote.totalAmount)
+    };
+
+    const sale = await this.createSale(saleRequest);
+    const updatedQuote = await this.updateQuoteStatus(quoteId, 'converted');
+    await db.update(quotes).set({ convertedToSaleId: sale.id }).where(eq(quotes.id, quoteId));
+
+    return { sale, quote: updatedQuote };
+  }
+
+  // === CUSTOMER ORDERS ===
+  async getCustomerOrders(): Promise<(CustomerOrder & { client: Client | null })[]> {
+    const orders = await db.select().from(customerOrders)
+      .orderBy(desc(customerOrders.createdAt));
+    
+    const result = [];
+    for (const order of orders) {
+      let client = null;
+      if (order.clientId) {
+        const [c] = await db.select().from(clients).where(eq(clients.id, order.clientId));
+        client = c || null;
+      }
+      result.push({ ...order, client });
+    }
+    return result;
+  }
+
+  async createCustomerOrder(data: any, items: any[]): Promise<CustomerOrder> {
+    const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}-${nanoid(4).toUpperCase()}`;
+    const subtotal = items.reduce((sum, i) => sum + (Number(i.quantity) * Number(i.unitPrice)), 0);
+    
+    const [order] = await db.insert(customerOrders)
+      .values({
+        orderNumber,
+        clientId: data.clientId,
+        notes: data.notes,
+        expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
+        depositAmount: (data.depositAmount || 0).toString(),
+        subtotal: subtotal.toString(),
+        totalAmount: subtotal.toString(),
+        status: 'pending',
+        paymentStatus: data.depositAmount > 0 ? 'partial' : 'pending'
+      })
+      .returning();
+
+    for (const item of items) {
+      await db.insert(customerOrderItems).values({
+        orderId: order.id,
+        productId: item.productId,
+        productSku: item.productSku,
+        productName: item.productName,
+        quantity: item.quantity.toString(),
+        unitPrice: item.unitPrice.toString(),
+        subtotal: (item.quantity * item.unitPrice).toString()
+      });
+    }
+
+    return order;
+  }
+
+  async updateCustomerOrderStatus(id: number, status: string): Promise<CustomerOrder> {
+    const updates: any = { status, updatedAt: new Date() };
+    if (status === 'delivered') {
+      updates.deliveredAt = new Date();
+    }
+    const [updated] = await db.update(customerOrders)
+      .set(updates)
+      .where(eq(customerOrders.id, id))
+      .returning();
+    return updated;
+  }
+
+  async convertCustomerOrderToSale(orderId: number): Promise<{ sale: Sale; order: CustomerOrder }> {
+    const [order] = await db.select().from(customerOrders).where(eq(customerOrders.id, orderId));
+    if (!order) throw new Error("Pedido no encontrado");
+
+    const items = await db.select().from(customerOrderItems).where(eq(customerOrderItems.orderId, orderId));
+
+    const saleRequest = {
+      clientId: order.clientId,
+      paymentMethod: 'cash',
+      items: items.map(i => ({
+        productId: i.productId!,
+        quantity: Number(i.quantity),
+        unitPrice: Number(i.unitPrice),
+        discount: 0,
+        subtotal: Number(i.subtotal)
+      })),
+      subtotal: Number(order.subtotal),
+      discount: 0,
+      total: Number(order.totalAmount)
+    };
+
+    const sale = await this.createSale(saleRequest);
+    await db.update(customerOrders)
+      .set({ convertedToSaleId: sale.id, paymentStatus: 'paid' })
+      .where(eq(customerOrders.id, orderId));
+    
+    const [updatedOrder] = await db.select().from(customerOrders).where(eq(customerOrders.id, orderId));
+
+    return { sale, order: updatedOrder };
+  }
+
+  // === PRICE LISTS ===
+  async getPriceLists(): Promise<PriceList[]> {
+    return await db.select().from(priceLists).orderBy(priceLists.name);
+  }
+
+  async createPriceList(data: InsertPriceList): Promise<PriceList> {
+    // If this is marked as default, unset other defaults
+    if (data.isDefault) {
+      await db.update(priceLists).set({ isDefault: false });
+    }
+    const [list] = await db.insert(priceLists).values(data).returning();
+    return list;
+  }
+
+  async updatePriceList(id: number, data: Partial<PriceList>): Promise<PriceList> {
+    if (data.isDefault) {
+      await db.update(priceLists).set({ isDefault: false });
+    }
+    const [updated] = await db.update(priceLists)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(priceLists.id, id))
+      .returning();
+    return updated;
+  }
+
+  // === LOYALTY PROGRAM ===
+  async getLoyaltyProgram(): Promise<LoyaltyProgram | undefined> {
+    const [program] = await db.select().from(loyaltyProgram).limit(1);
+    return program;
+  }
+
+  async saveLoyaltyProgram(data: InsertLoyaltyProgram): Promise<LoyaltyProgram> {
+    const existing = await this.getLoyaltyProgram();
+    if (existing) {
+      const [updated] = await db.update(loyaltyProgram)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(loyaltyProgram.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(loyaltyProgram).values(data).returning();
+      return created;
+    }
+  }
+
+  async getClientsWithPoints(): Promise<(Client & { loyaltyPoints?: ClientLoyaltyPoints })[]> {
+    const allClients = await db.select().from(clients).where(eq(clients.isActive, true));
+    const result = [];
+    
+    for (const client of allClients) {
+      const [points] = await db.select().from(clientLoyaltyPoints)
+        .where(eq(clientLoyaltyPoints.clientId, client.id));
+      result.push({ ...client, loyaltyPoints: points });
+    }
+    
+    return result;
+  }
+
+  // === BALANCES ===
+  async getClientsWithBalance(): Promise<(Client & { currentBalance: number })[]> {
+    const allClients = await db.select().from(clients).where(eq(clients.isActive, true));
+    const result = [];
+    
+    for (const client of allClients) {
+      const [balanceResult] = await db.select({
+        balance: sql<number>`COALESCE(SUM(CASE WHEN ${clientAccountMovements.movementType} = 'debit' THEN ${clientAccountMovements.amount} ELSE -${clientAccountMovements.amount} END), 0)`
+      }).from(clientAccountMovements)
+        .where(eq(clientAccountMovements.clientId, client.id));
+      
+      result.push({ ...client, currentBalance: Number(balanceResult?.balance || 0) });
+    }
+    
+    return result;
+  }
+
+  async getSuppliersWithBalance(): Promise<(Supplier & { currentBalance: number })[]> {
+    const allSuppliers = await db.select().from(suppliers).where(eq(suppliers.isActive, true));
+    const result = [];
+    
+    for (const supplier of allSuppliers) {
+      const [balanceResult] = await db.select({
+        balance: sql<number>`COALESCE(SUM(CASE WHEN ${supplierAccountMovements.movementType} = 'debit' THEN ${supplierAccountMovements.amount} ELSE -${supplierAccountMovements.amount} END), 0)`
+      }).from(supplierAccountMovements)
+        .where(eq(supplierAccountMovements.supplierId, supplier.id));
+      
+      result.push({ ...supplier, currentBalance: Number(balanceResult?.balance || 0) });
+    }
+    
+    return result;
+  }
+
+  // === STOCK ADJUSTMENTS ===
+  async createStockAdjustment(data: { productId: number; adjustmentType: string; quantity: number; notes?: string }): Promise<StockMovement> {
+    const [product] = await db.select().from(products).where(eq(products.id, data.productId));
+    if (!product) throw new Error("Producto no encontrado");
+
+    const previousStock = product.stockQuantity;
+    let newStock: number;
+    let quantityChange: number;
+
+    if (data.adjustmentType === 'add') {
+      newStock = previousStock + data.quantity;
+      quantityChange = data.quantity;
+    } else if (data.adjustmentType === 'subtract') {
+      newStock = previousStock - data.quantity;
+      quantityChange = -data.quantity;
+    } else { // set
+      newStock = data.quantity;
+      quantityChange = data.quantity - previousStock;
+    }
+
+    // Update product stock
+    await db.update(products)
+      .set({ stockQuantity: newStock, updatedAt: new Date() })
+      .where(eq(products.id, data.productId));
+
+    // Create stock movement record
+    const [movement] = await db.insert(stockMovements)
+      .values({
+        productId: data.productId,
+        movementType: 'adjustment',
+        quantity: quantityChange,
+        previousStock,
+        newStock,
+        notes: data.notes || `Ajuste manual: ${data.adjustmentType}`
+      })
+      .returning();
+
+    return movement;
+  }
+
+  // === BULK UPDATE PRODUCTS ===
+  async bulkUpdateProducts(productIds: number[], editType: string, value: string): Promise<{ updated: number }> {
+    let updateCount = 0;
+
+    for (const id of productIds) {
+      const [product] = await db.select().from(products).where(eq(products.id, id));
+      if (!product) continue;
+
+      let updates: Partial<Product> = { updatedAt: new Date() };
+
+      switch (editType) {
+        case 'price_percent':
+          const percentChange = parseFloat(value);
+          const newPrice = Number(product.price) * (1 + percentChange / 100);
+          updates.price = newPrice.toFixed(2);
+          break;
+        case 'price_fixed':
+          updates.price = parseFloat(value).toFixed(2);
+          break;
+        case 'profit':
+          updates.profitPercent = parseFloat(value);
+          // Recalculate price based on cost and new profit
+          const cost = Number(product.costWithTax || product.costPrice || 0);
+          if (cost > 0) {
+            updates.price = (cost * (1 + parseFloat(value) / 100)).toFixed(2);
+          }
+          break;
+        case 'status':
+          updates.isActive = value === '1';
+          break;
+      }
+
+      await db.update(products).set(updates).where(eq(products.id, id));
+      updateCount++;
+    }
+
+    return { updated: updateCount };
   }
 }
 
