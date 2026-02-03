@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { 
   Plus, Search, Edit, Trash2, Users, Phone, Mail, MapPin, 
-  CreditCard, UserCheck, DollarSign, MessageCircle, Building2
+  CreditCard, UserCheck, DollarSign, MessageCircle, Building2, Loader2
 } from "lucide-react";
 import type { Client, ClientWithDetails, ClientAuthorizedContact, ClientAccountMovement, ClientAccountSummary } from "@shared/schema";
 
@@ -26,6 +26,16 @@ const TAX_CONDITIONS: Record<string, string> = {
   exento: "Exento"
 };
 
+interface ARCAData {
+  cuit: string;
+  name: string | null;
+  address: string | null;
+  ivaCondition: string | null;
+  activity: string | null;
+  isCompany: boolean;
+  found: boolean;
+}
+
 export default function Clients() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,6 +44,82 @@ export default function Clients() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
   const [isMovementDialogOpen, setIsMovementDialogOpen] = useState(false);
+  const [isSearchingCuit, setIsSearchingCuit] = useState(false);
+  const [isSearchingCuitEdit, setIsSearchingCuitEdit] = useState(false);
+
+  const searchCuit = async (cuit: string, isEdit: boolean = false) => {
+    if (!cuit || cuit.replace(/\D/g, '').length < 11) {
+      toast({ 
+        title: "CUIT inválido", 
+        description: "El CUIT debe tener 11 dígitos",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    isEdit ? setIsSearchingCuitEdit(true) : setIsSearchingCuit(true);
+
+    try {
+      const response = await fetch(`/api/arca/cuit/${cuit.replace(/\D/g, '')}`);
+      const data: ARCAData = await response.json();
+
+      if (data.found) {
+        const formPrefix = isEdit ? "edit-" : "";
+        
+        if (data.name) {
+          const nameInput = document.getElementById(`${formPrefix}name`) as HTMLInputElement;
+          const businessInput = document.getElementById(`${formPrefix}businessName`) as HTMLInputElement;
+          if (data.isCompany) {
+            if (businessInput) businessInput.value = data.name;
+          } else {
+            if (nameInput) nameInput.value = data.name;
+          }
+        }
+        
+        if (data.address) {
+          const addressInput = document.getElementById(`${formPrefix}address`) as HTMLInputElement;
+          if (addressInput) addressInput.value = data.address;
+        }
+
+        // Map IVA condition
+        if (data.ivaCondition) {
+          const ivaLower = data.ivaCondition.toLowerCase();
+          let taxCondition = "consumidor_final";
+          if (ivaLower.includes("responsable inscripto") || ivaLower.includes("activo")) {
+            taxCondition = "responsable_inscripto";
+          } else if (ivaLower.includes("monotributo")) {
+            taxCondition = "monotributista";
+          } else if (ivaLower.includes("exento")) {
+            taxCondition = "exento";
+          }
+          // Note: Select needs special handling - we'll set a data attribute
+          const selectElement = document.querySelector(`[data-testid="${isEdit ? 'edit-' : ''}select-tax-condition"]`);
+          if (selectElement) {
+            selectElement.setAttribute('data-suggested-value', taxCondition);
+          }
+        }
+
+        toast({ 
+          title: "Datos encontrados", 
+          description: `Se encontraron datos para CUIT ${cuit}` 
+        });
+      } else {
+        toast({ 
+          title: "Sin resultados", 
+          description: "No se encontraron datos para este CUIT en ARCA",
+          variant: "destructive" 
+        });
+      }
+    } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: "No se pudo consultar ARCA. Intente nuevamente.",
+        variant: "destructive" 
+      });
+    } finally {
+      isEdit ? setIsSearchingCuitEdit(false) : setIsSearchingCuit(false);
+    }
+  };
 
   const { data: clients = [], isLoading } = useQuery<Client[]>({
     queryKey: ["/api/clients", searchQuery],
@@ -213,7 +299,26 @@ export default function Clients() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="taxId">CUIT / CUIL / DNI</Label>
-                  <Input id="taxId" name="taxId" placeholder="30-12345678-9" data-testid="input-client-tax-id" />
+                  <div className="flex gap-2">
+                    <Input id="taxId" name="taxId" placeholder="30-12345678-9" data-testid="input-client-tax-id" />
+                    <Button 
+                      type="button" 
+                      variant="outline"
+                      disabled={isSearchingCuit}
+                      onClick={() => {
+                        const input = document.getElementById("taxId") as HTMLInputElement;
+                        if (input) searchCuit(input.value);
+                      }}
+                      data-testid="button-search-cuit"
+                    >
+                      {isSearchingCuit ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Ingrese CUIT y busque en ARCA para autocompletar</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="taxCondition">Condición Fiscal</Label>
@@ -372,7 +477,25 @@ export default function Clients() {
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="edit-taxId">CUIT / CUIL / DNI</Label>
-                            <Input id="edit-taxId" name="taxId" defaultValue={selectedClient.taxId || ""} />
+                            <div className="flex gap-2">
+                              <Input id="edit-taxId" name="taxId" defaultValue={selectedClient.taxId || ""} />
+                              <Button 
+                                type="button" 
+                                variant="outline"
+                                disabled={isSearchingCuitEdit}
+                                onClick={() => {
+                                  const input = document.getElementById("edit-taxId") as HTMLInputElement;
+                                  if (input) searchCuit(input.value, true);
+                                }}
+                                data-testid="button-search-cuit-edit"
+                              >
+                                {isSearchingCuitEdit ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Search className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="edit-taxCondition">Condición Fiscal</Label>

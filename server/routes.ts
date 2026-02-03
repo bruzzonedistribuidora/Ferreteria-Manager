@@ -171,6 +171,81 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // === ARCA/AFIP CUIT Lookup ===
+  app.get("/api/arca/cuit/:cuit", isAuthenticated, async (req, res) => {
+    try {
+      const cuitParam = String(req.params.cuit);
+      const cuit = cuitParam.replace(/\D/g, ''); // Remove non-numeric characters
+      
+      if (cuit.length !== 11) {
+        return res.status(400).json({ message: "CUIT debe tener 11 dígitos" });
+      }
+
+      // Use the public API from cuitonline.com
+      const response = await fetch(`https://cuitonline.com/detalle/${cuit}`);
+      
+      if (!response.ok) {
+        return res.status(404).json({ message: "No se encontraron datos para este CUIT" });
+      }
+
+      const html = await response.text();
+      
+      // Parse the HTML to extract data
+      const nameMatch = html.match(/<h1[^>]*class="[^"]*nombre[^"]*"[^>]*>([^<]+)<\/h1>/i) ||
+                        html.match(/<title>([^|]+)/i);
+      const addressMatch = html.match(/Domicilio Fiscal[^<]*<[^>]*>([^<]+)/i);
+      const conditionMatch = html.match(/Condición frente al IVA[^<]*<[^>]*>([^<]+)/i) ||
+                             html.match(/(IVA\s*(Responsable|Exento|Monotributo)[^<]*)/i);
+      const activityMatch = html.match(/Actividad Principal[^<]*<[^>]*>([^<]+)/i);
+      
+      // Try alternative parsing for name
+      let name = "";
+      if (nameMatch && nameMatch[1]) {
+        name = nameMatch[1].trim().replace(/\s*-\s*CUIT.*$/i, '').trim();
+      }
+      
+      // Determine if it's a company (starts with 30, 33, 34) or person (20, 23, 24, 27)
+      const prefix = cuit.substring(0, 2);
+      const isCompany = ['30', '33', '34'].includes(prefix);
+      
+      const result = {
+        cuit: cuit,
+        name: name || null,
+        address: addressMatch ? addressMatch[1].trim() : null,
+        ivaCondition: conditionMatch ? conditionMatch[1].trim() : null,
+        activity: activityMatch ? activityMatch[1].trim() : null,
+        isCompany: isCompany,
+        found: !!name
+      };
+
+      // If we couldn't find data from cuitonline, try alternative API
+      if (!result.found) {
+        try {
+          const altResponse = await fetch(`https://afip.tangofactura.com/Rest/GetContribuyenteFull?cuit=${cuit}`);
+          if (altResponse.ok) {
+            const altData = await altResponse.json();
+            if (altData && altData.Contribuyente) {
+              const contrib = altData.Contribuyente;
+              result.name = contrib.nombre || contrib.razonSocial || null;
+              result.address = contrib.domicilioFiscal ? 
+                `${contrib.domicilioFiscal.direccion || ''}, ${contrib.domicilioFiscal.localidad || ''}, ${contrib.domicilioFiscal.provincia || ''}`.replace(/^,\s*|,\s*$/g, '') : 
+                null;
+              result.ivaCondition = contrib.estadoClave || null;
+              result.found = !!result.name;
+            }
+          }
+        } catch (altError) {
+          console.log("Alternative API failed, continuing with partial data");
+        }
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching CUIT data:", error);
+      res.status(500).json({ message: "Error al consultar datos del CUIT" });
+    }
+  });
+
   // === Clients Routes ===
   app.get(api.clients.list.path, isAuthenticated, async (req, res) => {
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;

@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { 
   Plus, Search, Edit, Trash2, Truck, Phone, Mail, MapPin, 
-  CreditCard, DollarSign, Building2, Calendar, Percent, Landmark
+  CreditCard, DollarSign, Building2, Calendar, Percent, Landmark, Loader2
 } from "lucide-react";
 import type { Supplier, SupplierWithDetails, SupplierAccountMovement, SupplierAccountSummary, SupplierProductDiscount } from "@shared/schema";
 
@@ -26,6 +26,16 @@ const TAX_CONDITIONS: Record<string, string> = {
   exento: "Exento"
 };
 
+interface ARCAData {
+  cuit: string;
+  name: string | null;
+  address: string | null;
+  ivaCondition: string | null;
+  activity: string | null;
+  isCompany: boolean;
+  found: boolean;
+}
+
 export default function Suppliers() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,6 +44,61 @@ export default function Suppliers() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isMovementDialogOpen, setIsMovementDialogOpen] = useState(false);
   const [isDiscountDialogOpen, setIsDiscountDialogOpen] = useState(false);
+  const [isSearchingCuit, setIsSearchingCuit] = useState(false);
+  const [isSearchingCuitEdit, setIsSearchingCuitEdit] = useState(false);
+
+  const searchCuit = async (cuit: string, isEdit: boolean = false) => {
+    if (!cuit || cuit.replace(/\D/g, '').length < 11) {
+      toast({ 
+        title: "CUIT inválido", 
+        description: "El CUIT debe tener 11 dígitos",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    isEdit ? setIsSearchingCuitEdit(true) : setIsSearchingCuit(true);
+
+    try {
+      const response = await fetch(`/api/arca/cuit/${cuit.replace(/\D/g, '')}`);
+      const data: ARCAData = await response.json();
+
+      if (data.found) {
+        const formPrefix = isEdit ? "edit-supplier-" : "supplier-";
+        
+        if (data.name) {
+          const nameInput = document.getElementById(`${formPrefix}name`) as HTMLInputElement;
+          const businessInput = document.getElementById(`${formPrefix}businessName`) as HTMLInputElement;
+          if (businessInput) businessInput.value = data.name;
+          if (nameInput && !data.isCompany) nameInput.value = data.name;
+        }
+        
+        if (data.address) {
+          const addressInput = document.getElementById(`${formPrefix}address`) as HTMLInputElement;
+          if (addressInput) addressInput.value = data.address;
+        }
+
+        toast({ 
+          title: "Datos encontrados", 
+          description: `Se encontraron datos para CUIT ${cuit}` 
+        });
+      } else {
+        toast({ 
+          title: "Sin resultados", 
+          description: "No se encontraron datos para este CUIT en ARCA",
+          variant: "destructive" 
+        });
+      }
+    } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: "No se pudo consultar ARCA. Intente nuevamente.",
+        variant: "destructive" 
+      });
+    } finally {
+      isEdit ? setIsSearchingCuitEdit(false) : setIsSearchingCuit(false);
+    }
+  };
 
   const { data: suppliers = [], isLoading } = useQuery<Supplier[]>({
     queryKey: ["/api/suppliers", searchQuery],
@@ -196,16 +261,35 @@ export default function Suppliers() {
             <form onSubmit={handleCreateSupplier} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nombre / Fantasía *</Label>
-                  <Input id="name" name="name" required data-testid="input-supplier-name" />
+                  <Label htmlFor="supplier-name">Nombre / Fantasía *</Label>
+                  <Input id="supplier-name" name="name" required data-testid="input-supplier-name" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="businessName">Razón Social</Label>
-                  <Input id="businessName" name="businessName" data-testid="input-supplier-business-name" />
+                  <Label htmlFor="supplier-businessName">Razón Social</Label>
+                  <Input id="supplier-businessName" name="businessName" data-testid="input-supplier-business-name" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="taxId">CUIT</Label>
-                  <Input id="taxId" name="taxId" placeholder="30-12345678-9" data-testid="input-supplier-tax-id" />
+                  <Label htmlFor="supplier-taxId">CUIT</Label>
+                  <div className="flex gap-2">
+                    <Input id="supplier-taxId" name="taxId" placeholder="30-12345678-9" data-testid="input-supplier-tax-id" />
+                    <Button 
+                      type="button" 
+                      variant="outline"
+                      disabled={isSearchingCuit}
+                      onClick={() => {
+                        const input = document.getElementById("supplier-taxId") as HTMLInputElement;
+                        if (input) searchCuit(input.value);
+                      }}
+                      data-testid="button-search-supplier-cuit"
+                    >
+                      {isSearchingCuit ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Ingrese CUIT y busque en ARCA para autocompletar</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="taxCondition">Condición Fiscal</Label>
@@ -233,8 +317,8 @@ export default function Suppliers() {
                   <Input id="email" name="email" type="email" data-testid="input-supplier-email" />
                 </div>
                 <div className="space-y-2 col-span-2">
-                  <Label htmlFor="address">Dirección</Label>
-                  <Input id="address" name="address" />
+                  <Label htmlFor="supplier-address">Dirección</Label>
+                  <Input id="supplier-address" name="address" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="city">Ciudad</Label>
@@ -383,16 +467,34 @@ export default function Suppliers() {
                       <form onSubmit={handleUpdateSupplier} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label htmlFor="edit-name">Nombre / Fantasía *</Label>
-                            <Input id="edit-name" name="name" defaultValue={selectedSupplier.name} required />
+                            <Label htmlFor="edit-supplier-name">Nombre / Fantasía *</Label>
+                            <Input id="edit-supplier-name" name="name" defaultValue={selectedSupplier.name} required />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="edit-businessName">Razón Social</Label>
-                            <Input id="edit-businessName" name="businessName" defaultValue={selectedSupplier.businessName || ""} />
+                            <Label htmlFor="edit-supplier-businessName">Razón Social</Label>
+                            <Input id="edit-supplier-businessName" name="businessName" defaultValue={selectedSupplier.businessName || ""} />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="edit-taxId">CUIT</Label>
-                            <Input id="edit-taxId" name="taxId" defaultValue={selectedSupplier.taxId || ""} />
+                            <Label htmlFor="edit-supplier-taxId">CUIT</Label>
+                            <div className="flex gap-2">
+                              <Input id="edit-supplier-taxId" name="taxId" defaultValue={selectedSupplier.taxId || ""} />
+                              <Button 
+                                type="button" 
+                                variant="outline"
+                                disabled={isSearchingCuitEdit}
+                                onClick={() => {
+                                  const input = document.getElementById("edit-supplier-taxId") as HTMLInputElement;
+                                  if (input) searchCuit(input.value, true);
+                                }}
+                                data-testid="button-search-supplier-cuit-edit"
+                              >
+                                {isSearchingCuitEdit ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Search className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="edit-taxCondition">Condición Fiscal</Label>
