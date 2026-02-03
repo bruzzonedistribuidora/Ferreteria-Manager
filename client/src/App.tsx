@@ -44,6 +44,7 @@ import InternalInstallments from "@/pages/InternalInstallments";
 import FinanceIntelligence from "@/pages/FinanceIntelligence";
 import CustomerPortal from "@/pages/CustomerPortal";
 import LoyaltyAdmin from "@/pages/LoyaltyAdmin";
+import Mobile from "@/pages/Mobile";
 
 function Router() {
   const { isAuthenticated, isLoading } = useEmployeeAuth();
@@ -72,6 +73,9 @@ function Router() {
   // Authenticated Routes
   return (
     <Switch>
+      {/* MÓVIL */}
+      <Route path="/mobile" component={Mobile} />
+      
       {/* PRINCIPAL */}
       <Route path="/" component={Dashboard} />
       

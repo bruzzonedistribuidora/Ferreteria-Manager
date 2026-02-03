@@ -39,7 +39,8 @@ import {
   Plus,
   X,
   Zap,
-  Ticket
+  Ticket,
+  Smartphone
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -296,7 +297,17 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
           ))}
         </div>
 
-        <div className="p-2 border-t border-slate-800">
+        <div className="p-2 border-t border-slate-800 space-y-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/mobile">
+                <div className="flex w-full items-center justify-center rounded-lg p-2 text-slate-400 hover:bg-blue-500/10 hover:text-blue-400 transition-all duration-200 cursor-pointer" data-testid="link-mobile">
+                  <Smartphone className="h-4 w-4" />
+                </div>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">Modo Móvil</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -480,7 +491,13 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
         })}
       </div>
 
-      <div className="p-3 border-t border-slate-800">
+      <div className="p-3 border-t border-slate-800 space-y-1">
+        <Link href="/mobile">
+          <div className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-blue-500/10 hover:text-blue-400 transition-all duration-200 cursor-pointer" data-testid="link-mobile-expanded">
+            <Smartphone className="h-4 w-4" />
+            Modo Móvil
+          </div>
+        </Link>
         <button
           onClick={() => logout()}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-red-500/10 hover:text-red-500 transition-all duration-200"
