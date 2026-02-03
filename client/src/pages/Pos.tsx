@@ -4,7 +4,7 @@ import { useClients } from "@/hooks/use-clients";
 import { useCreateSale } from "@/hooks/use-sales";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, User, Check, Loader2, Banknote, ArrowRightLeft, FileText, Receipt, Percent, FileCheck, Wallet } from "lucide-react";
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, User, Check, Loader2, Banknote, ArrowRightLeft, FileText, Receipt, Percent, FileCheck, Wallet, SplitSquareHorizontal, X } from "lucide-react";
 import type { PaymentMethod } from "@shared/schema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,11 @@ type CartItem = {
   maxStock: number;
 };
 
+type MixedPayment = {
+  method: string;
+  amount: number;
+};
+
 export default function Pos() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -48,6 +53,8 @@ export default function Pos() {
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [createRemito, setCreateRemito] = useState(false);
+  const [isMixedPayment, setIsMixedPayment] = useState(false);
+  const [mixedPayments, setMixedPayments] = useState<MixedPayment[]>([]);
 
   const { data: products, isLoading: loadingProducts } = useProducts();
   const { data: clients } = useClients();
@@ -144,6 +151,38 @@ export default function Pos() {
   const discountAmount = subtotal * (discountPercent / 100);
   const total = subtotal - discountAmount;
 
+  // Mixed payment helpers
+  const mixedPaymentTotal = mixedPayments.reduce((sum, p) => sum + p.amount, 0);
+  const mixedPaymentRemaining = total - mixedPaymentTotal;
+
+  const addMixedPayment = (method: string) => {
+    if (mixedPayments.find(p => p.method === method)) return;
+    setMixedPayments(prev => [...prev, { method, amount: 0 }]);
+  };
+
+  const updateMixedPaymentAmount = (method: string, amount: number) => {
+    setMixedPayments(prev => prev.map(p => 
+      p.method === method ? { ...p, amount: Math.max(0, amount) } : p
+    ));
+  };
+
+  const removeMixedPayment = (method: string) => {
+    setMixedPayments(prev => prev.filter(p => p.method !== method));
+  };
+
+  const getMethodName = (code: string) => {
+    const method = activePaymentMethods.find(m => m.code === code);
+    if (method) return method.name;
+    const defaults: Record<string, string> = {
+      cash: 'Efectivo',
+      card: 'Tarjeta',
+      transfer: 'Transferencia',
+      check: 'Cheque',
+      credit_account: 'Cuenta Corriente'
+    };
+    return defaults[code] || code;
+  };
+
   const DOC_TYPES: Record<string, string> = {
     ingreso: "Ingreso Simple",
     factura_a: "Factura A",
@@ -153,12 +192,23 @@ export default function Pos() {
   };
 
   const handleCheckout = () => {
+    // Validate mixed payment total
+    if (isMixedPayment && Math.abs(mixedPaymentRemaining) > 0.01) {
+      toast({
+        title: "Error de Pago",
+        description: `El total de pagos mixtos debe ser igual al total. Falta: $${mixedPaymentRemaining.toFixed(2)}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     createSale({
       clientId: selectedClientId === "walk-in" ? undefined : Number(selectedClientId),
       documentType,
-      paymentMethod: effectivePaymentMethod,
+      paymentMethod: isMixedPayment ? "mixed" : effectivePaymentMethod,
       discountPercent,
       createRemito,
+      payments: isMixedPayment ? mixedPayments.map(p => ({ paymentMethod: p.method, amount: p.amount })) : undefined,
       items: cart.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -171,6 +221,9 @@ export default function Pos() {
         if (createRemito) {
           description += " Remito creado automáticamente.";
         }
+        if (isMixedPayment) {
+          description += ` Pago mixto: ${mixedPayments.map(p => `${getMethodName(p.method)}: $${p.amount.toFixed(2)}`).join(', ')}.`;
+        }
         toast({
           title: documentType === "presupuesto" ? "Presupuesto Generado" : "Venta Completada",
           description,
@@ -182,6 +235,8 @@ export default function Pos() {
         setDiscountPercent(0);
         setSelectedClientId("walk-in");
         setCreateRemito(false);
+        setIsMixedPayment(false);
+        setMixedPayments([]);
       },
       onError: (err) => {
         toast({
@@ -368,53 +423,160 @@ export default function Pos() {
                   </div>
 
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-slate-700">Método de Pago</label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {activePaymentMethods.length > 0 ? (
-                        activePaymentMethods.map((method) => {
-                          const Icon = getPaymentIcon(method.code);
-                          return (
-                            <div 
-                              key={method.code}
-                              onClick={() => setPaymentMethod(method.code)}
-                              data-testid={`payment-method-${method.code}`}
-                              className={`
-                                cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-2 transition-all
-                                ${paymentMethod === method.code 
-                                  ? 'border-orange-500 bg-orange-50 text-orange-700' 
-                                  : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'}
-                              `}
-                            >
-                              <Icon className="h-6 w-6" />
-                              <span className="text-sm font-medium">{method.name}</span>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <>
-                          {[
-                            { key: 'cash', label: 'Efectivo', icon: Banknote },
-                            { key: 'card', label: 'Tarjeta', icon: CreditCard },
-                            { key: 'transfer', label: 'Transferencia', icon: ArrowRightLeft }
-                          ].map((method) => (
-                            <div 
-                              key={method.key}
-                              onClick={() => setPaymentMethod(method.key)}
-                              data-testid={`payment-method-${method.key}`}
-                              className={`
-                                cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-2 transition-all
-                                ${paymentMethod === method.key 
-                                  ? 'border-orange-500 bg-orange-50 text-orange-700' 
-                                  : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'}
-                              `}
-                            >
-                              <method.icon className="h-6 w-6" />
-                              <span className="text-sm font-medium">{method.label}</span>
-                            </div>
-                          ))}
-                        </>
-                      )}
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-slate-700">Método de Pago</label>
+                      <Button
+                        type="button"
+                        variant={isMixedPayment ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setIsMixedPayment(!isMixedPayment);
+                          if (!isMixedPayment) {
+                            setMixedPayments([]);
+                          }
+                        }}
+                        data-testid="button-toggle-mixed-payment"
+                        className={isMixedPayment ? "bg-orange-600 hover:bg-orange-700" : ""}
+                      >
+                        <SplitSquareHorizontal className="h-4 w-4 mr-2" />
+                        Pago Mixto
+                      </Button>
                     </div>
+
+                    {!isMixedPayment ? (
+                      <div className="grid grid-cols-3 gap-3">
+                        {activePaymentMethods.length > 0 ? (
+                          activePaymentMethods.map((method) => {
+                            const Icon = getPaymentIcon(method.code);
+                            return (
+                              <div 
+                                key={method.code}
+                                onClick={() => setPaymentMethod(method.code)}
+                                data-testid={`payment-method-${method.code}`}
+                                className={`
+                                  cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-2 transition-all
+                                  ${paymentMethod === method.code 
+                                    ? 'border-orange-500 bg-orange-50 text-orange-700' 
+                                    : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'}
+                                `}
+                              >
+                                <Icon className="h-6 w-6" />
+                                <span className="text-sm font-medium">{method.name}</span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <>
+                            {[
+                              { key: 'cash', label: 'Efectivo', icon: Banknote },
+                              { key: 'card', label: 'Tarjeta', icon: CreditCard },
+                              { key: 'transfer', label: 'Transferencia', icon: ArrowRightLeft }
+                            ].map((method) => (
+                              <div 
+                                key={method.key}
+                                onClick={() => setPaymentMethod(method.key)}
+                                data-testid={`payment-method-${method.key}`}
+                                className={`
+                                  cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-2 transition-all
+                                  ${paymentMethod === method.key 
+                                    ? 'border-orange-500 bg-orange-50 text-orange-700' 
+                                    : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'}
+                                `}
+                              >
+                                <method.icon className="h-6 w-6" />
+                                <span className="text-sm font-medium">{method.label}</span>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                          <p className="text-sm text-orange-700">
+                            Divide el pago entre múltiples métodos. El total debe sumar ${total.toFixed(2)}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {(activePaymentMethods.length > 0 ? activePaymentMethods : [
+                            { code: 'cash', name: 'Efectivo' },
+                            { code: 'card', name: 'Tarjeta' },
+                            { code: 'transfer', name: 'Transferencia' }
+                          ]).map((method) => {
+                            const isAdded = mixedPayments.find(p => p.method === method.code);
+                            const Icon = getPaymentIcon(method.code);
+                            return (
+                              <Button
+                                key={method.code}
+                                type="button"
+                                variant={isAdded ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => addMixedPayment(method.code)}
+                                disabled={!!isAdded}
+                                data-testid={`add-mixed-${method.code}`}
+                                className={isAdded ? "bg-orange-600" : ""}
+                              >
+                                <Icon className="h-4 w-4 mr-1" />
+                                {method.name}
+                              </Button>
+                            );
+                          })}
+                        </div>
+
+                        {mixedPayments.length > 0 && (
+                          <div className="space-y-3">
+                            {mixedPayments.map((payment) => {
+                              const Icon = getPaymentIcon(payment.method);
+                              return (
+                                <div key={payment.method} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg">
+                                  <Icon className="h-5 w-5 text-slate-600" />
+                                  <span className="font-medium text-sm flex-1">{getMethodName(payment.method)}</span>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={payment.amount || ''}
+                                    onChange={(e) => updateMixedPaymentAmount(payment.method, parseFloat(e.target.value) || 0)}
+                                    placeholder="Monto"
+                                    className="w-28"
+                                    data-testid={`input-mixed-${payment.method}`}
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removeMixedPayment(payment.method)}
+                                    data-testid={`remove-mixed-${payment.method}`}
+                                  >
+                                    <X className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </div>
+                              );
+                            })}
+
+                            <div className={`p-3 rounded-lg ${Math.abs(mixedPaymentRemaining) < 0.01 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium">Total asignado:</span>
+                                <span className="font-bold">${mixedPaymentTotal.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between items-center mt-1">
+                                <span className="text-sm">Restante:</span>
+                                <span className={`font-bold ${Math.abs(mixedPaymentRemaining) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>
+                                  ${mixedPaymentRemaining.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {mixedPayments.length === 0 && (
+                          <p className="text-sm text-slate-500 text-center py-4">
+                            Selecciona los métodos de pago que deseas combinar
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-2">
