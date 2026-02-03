@@ -7,6 +7,9 @@ import { users } from "./models/auth";
 // Export all auth models (users and sessions)
 export * from "./models/auth";
 
+// Export chat models
+export * from "./models/chat";
+
 // === PRODUCTS ===
 export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),

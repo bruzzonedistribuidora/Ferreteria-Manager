@@ -5,6 +5,12 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { isAuthenticated } from "./replit_integrations/auth";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
 
 export async function registerRoutes(
   httpServer: Server,
@@ -2058,6 +2064,57 @@ export async function registerRoutes(
       res.json(advance);
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Error al pagar adelanto" });
+    }
+  });
+
+  // === FINANCIAL AI ASSISTANT ===
+  app.post("/api/finance-ai/chat", isAuthenticated, async (req, res) => {
+    try {
+      const { message, financialData } = req.body;
+
+      const systemPrompt = `Eres un asesor financiero experto para ferreterías en Argentina. Tu rol es ayudar al dueño del negocio a:
+- Mejorar el ticket promedio de venta
+- Aumentar la rentabilidad
+- Optimizar el flujo de caja
+- Tomar decisiones estratégicas basadas en datos
+- Identificar oportunidades de crecimiento
+
+Datos actuales del negocio:
+${JSON.stringify(financialData, null, 2)}
+
+Responde en español de forma clara, práctica y accionable. Da consejos específicos basados en los números reales. Usa formato con viñetas cuando sea apropiado.`;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: message }
+        ],
+        stream: true,
+        max_tokens: 1500,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) {
+          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        }
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (err: any) {
+      console.error("Finance AI error:", err);
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ message: err.message || "Error en asistente IA" });
+      }
     }
   });
 

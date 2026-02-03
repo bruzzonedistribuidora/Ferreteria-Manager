@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Brain, 
   TrendingUp, 
@@ -24,7 +26,12 @@ import {
   Clock,
   CheckCircle2,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  Send,
+  Sparkles,
+  MessageSquare,
+  Loader2,
+  Lightbulb
 } from "lucide-react";
 import { 
   LineChart, 
@@ -47,8 +54,17 @@ import type { Sale } from "@shared/schema";
 
 const COLORS = ['#f97316', '#0ea5e9', '#22c55e', '#a855f7', '#ef4444', '#eab308'];
 
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export default function FinanceIntelligence() {
   const [activeTab, setActiveTab] = useState("equilibrio");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { data: sales = [] } = useQuery<Sale[]>({
     queryKey: ["/api/sales"],
@@ -57,6 +73,10 @@ export default function FinanceIntelligence() {
   const { data: products = [] } = useQuery<any[]>({
     queryKey: ["/api/products"],
   });
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
   const { data: expenses = [] } = useQuery<any[]>({
     queryKey: ["/api/cash-movements"],
@@ -171,6 +191,85 @@ export default function FinanceIntelligence() {
     }).format(value);
   };
 
+  const financialData = {
+    ventasHoy: totalToday,
+    ventasSemana: totalWeek,
+    ventasMes: totalMonth,
+    ventasAnio: totalYear,
+    puntoEquilibrioDiario: breakEvenDaily,
+    puntoEquilibrioMensual: breakEvenMonthly,
+    margenBruto: `${(grossMarginRatio * 100).toFixed(0)}%`,
+    utilidadMensual: profitMonthly,
+    ticketPromedio: salesMonth.length > 0 ? totalMonth / salesMonth.length : 0,
+    ventasPorDia: salesMonth.length / (now.getDate() || 1),
+    costosFijosMensuales: fixedCostsMonthly,
+    progresoEquilibrioMensual: `${progressMonthly.toFixed(0)}%`,
+  };
+
+  const sendAiMessage = async () => {
+    if (!chatInput.trim() || isAiLoading) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput("");
+    setChatMessages(prev => [...prev, { role: "user", content: userMessage }]);
+    setIsAiLoading(true);
+
+    try {
+      const response = await fetch("/api/finance-ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: userMessage, financialData }),
+      });
+
+      if (!response.ok) throw new Error("Error en la respuesta");
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader");
+
+      const decoder = new TextDecoder();
+      let aiContent = "";
+
+      setChatMessages(prev => [...prev, { role: "assistant", content: "" }]);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n");
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.content) {
+              aiContent += data.content;
+              setChatMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: "assistant", content: aiContent };
+                return updated;
+              });
+            }
+          } catch {}
+        }
+      }
+    } catch (error) {
+      setChatMessages(prev => [...prev, { 
+        role: "assistant", 
+        content: "Lo siento, hubo un error al procesar tu consulta. Por favor intenta de nuevo." 
+      }]);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const suggestedQuestions = [
+    "¿Cómo puedo aumentar mi ticket promedio?",
+    "¿Qué estrategias me recomiendas para mejorar la rentabilidad?",
+    "¿Cómo puedo reducir mis costos fijos?",
+    "Dame ideas para hacer crecer mi ferretería",
+  ];
+
   const BreakEvenCard = ({ 
     title, 
     icon: Icon, 
@@ -264,7 +363,7 @@ export default function FinanceIntelligence() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
             <TabsTrigger value="equilibrio" data-testid="tab-equilibrio">
               <Target className="h-4 w-4 mr-2" />
               Punto de Equilibrio
@@ -279,7 +378,11 @@ export default function FinanceIntelligence() {
             </TabsTrigger>
             <TabsTrigger value="analitica" data-testid="tab-analitica">
               <PieChart className="h-4 w-4 mr-2" />
-              Contabilidad Analítica
+              Analítica
+            </TabsTrigger>
+            <TabsTrigger value="asistente" data-testid="tab-asistente">
+              <Sparkles className="h-4 w-4 mr-2" />
+              Asistente IA
             </TabsTrigger>
           </TabsList>
 
@@ -817,6 +920,141 @@ export default function FinanceIntelligence() {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="asistente" className="space-y-6 mt-6">
+            <div className="grid gap-6 lg:grid-cols-3">
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-orange-500" />
+                    Asistente de Inteligencia Financiera
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ScrollArea className="h-[400px] border rounded-lg p-4">
+                    {chatMessages.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                        <Brain className="h-12 w-12 mb-4 text-orange-300" />
+                        <p className="text-lg font-medium mb-2">¡Hola! Soy tu asesor financiero</p>
+                        <p className="text-sm max-w-md">
+                          Pregúntame sobre estrategias para mejorar tu ticket promedio, 
+                          aumentar la rentabilidad o hacer crecer tu ferretería.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {chatMessages.map((msg, index) => (
+                          <div
+                            key={index}
+                            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                          >
+                            <div
+                              className={`max-w-[85%] rounded-lg px-4 py-3 ${
+                                msg.role === "user"
+                                  ? "bg-orange-500 text-white"
+                                  : "bg-slate-100 text-slate-800"
+                              }`}
+                            >
+                              <div className="flex items-start gap-2">
+                                {msg.role === "assistant" && (
+                                  <Sparkles className="h-4 w-4 mt-1 text-orange-500 flex-shrink-0" />
+                                )}
+                                <p className="text-sm whitespace-pre-wrap">{msg.content || "..."}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <div ref={chatEndRef} />
+                      </div>
+                    )}
+                  </ScrollArea>
+
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Pregunta sobre tu negocio..."
+                      className="min-h-[60px] resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          sendAiMessage();
+                        }
+                      }}
+                      data-testid="input-ai-chat"
+                    />
+                    <Button
+                      onClick={sendAiMessage}
+                      disabled={isAiLoading || !chatInput.trim()}
+                      className="px-4"
+                      data-testid="button-send-ai"
+                    >
+                      {isAiLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4 text-amber-500" />
+                      Preguntas Sugeridas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {suggestedQuestions.map((question, index) => (
+                      <Button
+                        key={index}
+                        variant="outline"
+                        className="w-full justify-start text-left h-auto py-2 text-sm"
+                        onClick={() => {
+                          setChatInput(question);
+                        }}
+                        data-testid={`button-suggestion-${index}`}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
+                        <span className="line-clamp-2">{question}</span>
+                      </Button>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Datos Actuales</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Ventas del mes</span>
+                      <span className="font-medium">{formatCurrency(totalMonth)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Ticket promedio</span>
+                      <span className="font-medium">
+                        {formatCurrency(salesMonth.length > 0 ? totalMonth / salesMonth.length : 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Margen bruto</span>
+                      <span className="font-medium text-green-600">{(grossMarginRatio * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Utilidad mensual</span>
+                      <span className={`font-medium ${profitMonthly >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(profitMonthly)}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
