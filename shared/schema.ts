@@ -2,7 +2,7 @@ import { pgTable, text, serial, integer, boolean, timestamp, numeric, jsonb, var
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { users } from "./models/auth";
+import { users, roles } from "./models/auth";
 
 // Export all auth models (users and sessions)
 export * from "./models/auth";
@@ -1474,6 +1474,9 @@ export type InsertPriceListItem = z.infer<typeof insertPriceListItemSchema>;
 // === EMPLOYEES & PAYROLL ===
 export const employees = pgTable("employees", {
   id: serial("id").primaryKey(),
+  username: varchar("username", { length: 50 }).unique(),
+  passwordHash: varchar("password_hash", { length: 255 }),
+  roleId: integer("role_id").references(() => roles.id),
   firstName: varchar("first_name", { length: 100 }).notNull(),
   lastName: varchar("last_name", { length: 100 }).notNull(),
   documentId: varchar("document_id", { length: 20 }),
@@ -1490,6 +1493,7 @@ export const employees = pgTable("employees", {
   cbu: varchar("cbu", { length: 30 }),
   notes: text("notes"),
   isActive: boolean("is_active").default(true),
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

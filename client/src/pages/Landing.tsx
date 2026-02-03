@@ -5,17 +5,48 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShoppingCart, Zap, User, Smartphone, Lock } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+
+type CompanySettings = {
+  companyName: string;
+  fantasyName: string | null;
+  logoUrl: string | null;
+};
 
 export default function Landing() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [clientId, setClientId] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
-  const loginMutation = useMutation({
+  const { data: companySettings } = useQuery<CompanySettings>({
+    queryKey: ["/api/settings/company"],
+  });
+
+  const employeeLoginMutation = useMutation({
+    mutationFn: async (data: { username: string; password: string }) => {
+      const res = await apiRequest("POST", "/api/employee/login", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Bienvenido", description: "Acceso autorizado" });
+      setLocation("/");
+      window.location.reload();
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Error de acceso", 
+        description: error.message || "Usuario o contraseña incorrectos", 
+        variant: "destructive" 
+      });
+    }
+  });
+
+  const clientLoginMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await apiRequest("POST", "/api/portal/login", { identifier: id });
       return res.json();
@@ -30,12 +61,22 @@ export default function Landing() {
     }
   });
 
+  const handleEmployeeLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username.trim() && password.trim()) {
+      employeeLoginMutation.mutate({ username: username.trim(), password: password.trim() });
+    }
+  };
+
   const handleClientLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (clientId.trim()) {
-      loginMutation.mutate(clientId.trim());
+      clientLoginMutation.mutate(clientId.trim());
     }
   };
+
+  const companyName = companySettings?.fantasyName || companySettings?.companyName || "FERRECLOUD";
+  const logoUrl = companySettings?.logoUrl;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
@@ -43,20 +84,30 @@ export default function Landing() {
         {/* Logo y Branding */}
         <div className="text-center mb-8">
           <div className="relative inline-block mb-6">
-            <div className="h-20 w-20 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-orange-500/30 mx-auto">
-              <ShoppingCart className="h-10 w-10 text-white" />
-            </div>
+            {logoUrl ? (
+              <img 
+                src={logoUrl} 
+                alt={companyName}
+                className="h-20 w-20 object-contain rounded-2xl shadow-2xl shadow-orange-500/30 mx-auto"
+              />
+            ) : (
+              <div className="h-20 w-20 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-orange-500/30 mx-auto">
+                <ShoppingCart className="h-10 w-10 text-white" />
+              </div>
+            )}
             <div className="absolute -bottom-1 -right-1 h-8 w-8 bg-slate-800 rounded-lg flex items-center justify-center border-2 border-slate-700">
               <Zap className="h-4 w-4 text-orange-500" />
             </div>
           </div>
           
           <h1 className="text-3xl font-black tracking-tight mb-2">
-            <span className="text-white">FERRE</span>
-            <span className="text-orange-500">CLOUD</span>
+            <span className="text-white">{companyName.split(' ')[0]}</span>
+            {companyName.split(' ').length > 1 && (
+              <span className="text-orange-500"> {companyName.split(' ').slice(1).join(' ')}</span>
+            )}
           </h1>
           <p className="text-slate-400 text-sm tracking-widest uppercase">
-            Sistema de Gestión para Ferreterías
+            Plataforma de Gestión
           </p>
         </div>
 
@@ -85,24 +136,53 @@ export default function Landing() {
 
               {/* Tab Personal - Empleados */}
               <TabsContent value="personal" className="space-y-6">
-                <div className="text-center space-y-2 py-4">
-                  <p className="text-slate-600 text-sm">
-                    Acceso exclusivo para empleados y administradores
-                  </p>
-                </div>
+                <form onSubmit={handleEmployeeLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="username" className="text-xs font-semibold text-orange-600 uppercase tracking-wide">
+                      Usuario / Email
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                      <Input
+                        id="username"
+                        type="text"
+                        placeholder="admin"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="pl-10 h-12 bg-slate-50 border-slate-200 focus:border-orange-500 focus:ring-orange-500"
+                        data-testid="input-username"
+                      />
+                    </div>
+                  </div>
 
-                <Button 
-                  className="w-full h-14 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold text-lg shadow-lg shadow-orange-500/25"
-                  onClick={() => window.location.href = '/api/login'}
-                  data-testid="button-login-personal"
-                >
-                  <Zap className="h-5 w-5 mr-2" />
-                  ENTRAR AL ERP
-                </Button>
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-xs font-semibold text-orange-600 uppercase tracking-wide">
+                      Contraseña
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 h-12 bg-slate-50 border-slate-200 focus:border-orange-500 focus:ring-orange-500"
+                        data-testid="input-password"
+                      />
+                    </div>
+                  </div>
 
-                <p className="text-center text-xs text-slate-400 pt-2">
-                  Iniciar sesión con tu cuenta autorizada
-                </p>
+                  <Button 
+                    type="submit"
+                    className="w-full h-14 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold text-lg shadow-lg shadow-orange-500/25"
+                    disabled={employeeLoginMutation.isPending || !username.trim() || !password.trim()}
+                    data-testid="button-login-personal"
+                  >
+                    <Zap className="h-5 w-5 mr-2" />
+                    {employeeLoginMutation.isPending ? "INGRESANDO..." : "ENTRAR AL ERP"}
+                  </Button>
+                </form>
               </TabsContent>
 
               {/* Tab Clientes */}
@@ -129,11 +209,11 @@ export default function Landing() {
                   <Button 
                     type="submit"
                     className="w-full h-14 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold text-lg shadow-lg shadow-orange-500/25"
-                    disabled={loginMutation.isPending || !clientId.trim()}
+                    disabled={clientLoginMutation.isPending || !clientId.trim()}
                     data-testid="button-login-cliente"
                   >
                     <Zap className="h-5 w-5 mr-2" />
-                    {loginMutation.isPending ? "INGRESANDO..." : "ACCEDER AL PORTAL"}
+                    {clientLoginMutation.isPending ? "INGRESANDO..." : "ACCEDER AL PORTAL"}
                   </Button>
                 </form>
 

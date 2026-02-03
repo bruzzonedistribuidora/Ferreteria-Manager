@@ -7,6 +7,7 @@ import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { isAuthenticated } from "./replit_integrations/auth";
 import OpenAI from "openai";
 import { emitDataChange } from "./websocket";
+import { setupEmployeeAuthRoutes, isEmployeeAuthenticated } from "./employeeAuth";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -20,6 +21,9 @@ export async function registerRoutes(
   // Auth Setup
   await setupAuth(app);
   registerAuthRoutes(app);
+  
+  // Employee Auth Routes
+  setupEmployeeAuthRoutes(app);
 
   // === Products Routes ===
   app.get(api.products.list.path, isAuthenticated, async (req, res) => {
@@ -1796,7 +1800,8 @@ export async function registerRoutes(
   });
 
   // === COMPANY SETTINGS ROUTES ===
-  app.get("/api/settings/company", isAuthenticated, async (req, res) => {
+  // Public route for login page to show company name/logo
+  app.get("/api/settings/company", async (req, res) => {
     const settings = await storage.getCompanySettings();
     res.json(settings || null);
   });

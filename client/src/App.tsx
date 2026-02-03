@@ -3,8 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useAuth } from "@/hooks/use-auth";
-import { useEffect } from "react";
+import { useEmployeeAuth } from "@/hooks/useEmployeeAuth";
 import { Loader2 } from "lucide-react";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 
@@ -46,33 +45,8 @@ import FinanceIntelligence from "@/pages/FinanceIntelligence";
 import CustomerPortal from "@/pages/CustomerPortal";
 import LoyaltyAdmin from "@/pages/LoyaltyAdmin";
 
-function PrivateRoute({ component: Component, ...rest }: any) {
-  const { isAuthenticated, isLoading } = useAuth();
-  const [, setLocation] = useLocation();
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      // Don't redirect here, let the main Router handle it by showing Landing
-      // This is just a backup check
-    }
-  }, [isLoading, isAuthenticated, setLocation]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-12 w-12 animate-spin text-orange-500" />
-          <p className="text-slate-500 text-sm font-medium">Loading FerreCloud...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return isAuthenticated ? <Component /> : <Landing />;
-}
-
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useEmployeeAuth();
 
   // Show loading spinner while checking auth status
   if (isLoading) {
