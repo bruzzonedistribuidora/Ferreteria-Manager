@@ -42,6 +42,8 @@ import Integrations from "@/pages/Integrations";
 import PurchasesAI from "@/pages/PurchasesAI";
 import InternalInstallments from "@/pages/InternalInstallments";
 import FinanceIntelligence from "@/pages/FinanceIntelligence";
+import CustomerPortal from "@/pages/CustomerPortal";
+import LoyaltyAdmin from "@/pages/LoyaltyAdmin";
 
 function PrivateRoute({ component: Component, ...rest }: any) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -86,6 +88,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/tienda" component={Store} />
+        <Route path="/portal" component={CustomerPortal} />
         <Route component={Landing} />
       </Switch>
     );
@@ -104,6 +107,8 @@ function Router() {
       <Route path="/orders" component={Orders} />
       <Route path="/clients" component={Clients} />
       <Route path="/loyalty" component={Loyalty} />
+      <Route path="/loyalty-admin" component={LoyaltyAdmin} />
+      <Route path="/portal" component={CustomerPortal} />
       <Route path="/ecommerce" component={Ecommerce} />
       
       {/* PRODUCTOS & ABASTECIMIENTO */}

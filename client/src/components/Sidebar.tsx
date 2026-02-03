@@ -38,7 +38,8 @@ import {
   Star,
   Plus,
   X,
-  Zap
+  Zap,
+  Ticket
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -87,6 +88,7 @@ const menuGroups: MenuGroup[] = [
       { icon: ShoppingBag, label: "Pedidos", href: "/orders" },
       { icon: Users, label: "Clientes", href: "/clients" },
       { icon: Heart, label: "Fidelización", href: "/loyalty" },
+      { icon: Ticket, label: "Cupones y Ofertas", href: "/loyalty-admin" },
       { icon: Globe, label: "E-Commerce", href: "/ecommerce" },
     ]
   },
