@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -182,9 +183,10 @@ export default function Clients() {
   const activeClients = clients.filter(c => c.isActive !== false);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <Layout>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
           <h1 className="text-3xl font-bold" data-testid="text-page-title">Clientes</h1>
           <p className="text-muted-foreground">Gestión avanzada de clientes con cuenta corriente</p>
         </div>
@@ -753,7 +755,8 @@ export default function Clients() {
             </Card>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </Layout>
   );
 }

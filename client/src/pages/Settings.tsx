@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -122,9 +123,10 @@ export default function Settings() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold" data-testid="text-page-title">Configuración</h1>
+    <Layout>
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold" data-testid="text-page-title">Configuración</h1>
         <p className="text-muted-foreground">Configura los datos de tu empresa y preferencias del sistema</p>
       </div>
 
@@ -670,6 +672,7 @@ export default function Settings() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </Layout>
   );
 }

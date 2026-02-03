@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -156,9 +157,10 @@ export default function BrandsCategories() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <Layout>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
           <h1 className="text-3xl font-bold" data-testid="text-page-title">Marcas y Rubros</h1>
           <p className="text-muted-foreground">Gestiona las marcas y rubros de productos</p>
         </div>
@@ -386,6 +388,7 @@ export default function BrandsCategories() {
           )}
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </Layout>
   );
 }

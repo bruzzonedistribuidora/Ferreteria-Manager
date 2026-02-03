@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -174,9 +175,10 @@ export default function Suppliers() {
   const activeSuppliers = suppliers.filter(s => s.isActive !== false);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <Layout>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
           <h1 className="text-3xl font-bold" data-testid="text-page-title">Proveedores</h1>
           <p className="text-muted-foreground">Gestión de proveedores con cuenta corriente y descuentos</p>
         </div>
@@ -709,7 +711,8 @@ export default function Suppliers() {
             </Card>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </Layout>
   );
 }
