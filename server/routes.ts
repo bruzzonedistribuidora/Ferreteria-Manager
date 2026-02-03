@@ -708,6 +708,26 @@ export async function registerRoutes(
     res.json(user);
   });
 
+  app.put("/api/users/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = typeof req.params.id === 'string' ? req.params.id : String(req.params.id);
+      const user = await storage.updateUser(userId, req.body);
+      res.json(user);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al actualizar usuario" });
+    }
+  });
+
+  app.delete("/api/users/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = typeof req.params.id === 'string' ? req.params.id : String(req.params.id);
+      await storage.deleteUser(userId);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al eliminar usuario" });
+    }
+  });
+
   // === PAYMENT METHODS MODULE ===
   // Seed default data on startup
   await storage.seedDefaultPaymentMethods();

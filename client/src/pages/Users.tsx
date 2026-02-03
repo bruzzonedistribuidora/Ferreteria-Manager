@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,9 +33,14 @@ export default function Users() {
   const [activeTab, setActiveTab] = useState("usuarios");
   const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [showPermissionsDialog, setShowPermissionsDialog] = useState(false);
+  const [showUserDialog, setShowUserDialog] = useState(false);
+  const [showDeleteUserDialog, setShowDeleteUserDialog] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
+  const [userToDelete, setUserToDelete] = useState<UserWithRole | null>(null);
   const [selectedRole, setSelectedRole] = useState<RoleWithPermissions | null>(null);
   const [roleForm, setRoleForm] = useState({ name: "", description: "" });
+  const [userForm, setUserForm] = useState({ firstName: "", lastName: "", email: "", roleId: "" });
   const [permissions, setPermissions] = useState<Record<number, { canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }>>({});
 
   const { data: users, isLoading: loadingUsers } = useQuery<UserWithRole[]>({
@@ -109,6 +115,57 @@ export default function Users() {
     }
   });
 
+  const updateUserMutation = useMutation({
+    mutationFn: ({ userId, data }: { userId: string; data: any }) =>
+      apiRequest("PUT", `/api/users/${userId}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setShowUserDialog(false);
+      setEditingUser(null);
+      setUserForm({ firstName: "", lastName: "", email: "", roleId: "" });
+      toast({ title: "Usuario actualizado exitosamente" });
+    }
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (userId: string) => apiRequest("DELETE", `/api/users/${userId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setShowDeleteUserDialog(false);
+      setUserToDelete(null);
+      toast({ title: "Usuario eliminado" });
+    }
+  });
+
+  const handleEditUser = (user: UserWithRole) => {
+    setEditingUser(user);
+    setUserForm({
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
+      email: user.email || "",
+      roleId: user.roleId?.toString() || ""
+    });
+    setShowUserDialog(true);
+  };
+
+  const handleDeleteUser = (user: UserWithRole) => {
+    setUserToDelete(user);
+    setShowDeleteUserDialog(true);
+  };
+
+  const handleSaveUser = () => {
+    if (editingUser) {
+      updateUserMutation.mutate({
+        userId: editingUser.id,
+        data: {
+          firstName: userForm.firstName,
+          lastName: userForm.lastName,
+          roleId: userForm.roleId ? parseInt(userForm.roleId) : null
+        }
+      });
+    }
+  };
+
   const updateModuleStatusMutation = useMutation({
     mutationFn: ({ moduleId, isActive }: { moduleId: number; isActive: boolean }) =>
       apiRequest("PUT", `/api/modules/${moduleId}/status`, { isActive }),
@@ -169,13 +226,16 @@ export default function Users() {
 
   if (loadingUsers || loadingRoles || loadingModules) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-      </div>
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+        </div>
+      </Layout>
     );
   }
 
   return (
+    <Layout>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -255,6 +315,22 @@ export default function Users() {
                           </SelectContent>
                         </Select>
                         <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleEditUser(user)}
+                            data-testid={`button-edit-user-${user.id}`}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleDeleteUser(user)}
+                            data-testid={`button-delete-user-${user.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                           <Switch
                             checked={user.isActive === true}
                             onCheckedChange={(checked) => updateUserStatusMutation.mutate({
@@ -537,6 +613,115 @@ export default function Users() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Usuario</DialogTitle>
+            <DialogDescription>
+              Modifica los datos del usuario
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="firstName">Nombre</Label>
+              <Input
+                id="firstName"
+                value={userForm.firstName}
+                onChange={(e) => setUserForm({ ...userForm, firstName: e.target.value })}
+                data-testid="input-user-firstName"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lastName">Apellido</Label>
+              <Input
+                id="lastName"
+                value={userForm.lastName}
+                onChange={(e) => setUserForm({ ...userForm, lastName: e.target.value })}
+                data-testid="input-user-lastName"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                value={userForm.email}
+                disabled
+                className="bg-gray-50"
+                data-testid="input-user-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="roleId">Rol</Label>
+              <Select
+                value={userForm.roleId}
+                onValueChange={(value) => setUserForm({ ...userForm, roleId: value })}
+              >
+                <SelectTrigger data-testid="select-user-role">
+                  <SelectValue placeholder="Sin rol" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles?.map(role => (
+                    <SelectItem key={role.id} value={role.id.toString()}>
+                      {role.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUserDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSaveUser}
+              disabled={updateUserMutation.isPending}
+              data-testid="button-save-user"
+            >
+              {updateUserMutation.isPending && (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              )}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <Dialog open={showDeleteUserDialog} onOpenChange={setShowDeleteUserDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar Usuario</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar este usuario?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-gray-600">
+              Se eliminará permanentemente el usuario <strong>{userToDelete?.firstName} {userToDelete?.lastName}</strong> ({userToDelete?.email}).
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteUserDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => userToDelete && deleteUserMutation.mutate(userToDelete.id)}
+              disabled={deleteUserMutation.isPending}
+              data-testid="button-confirm-delete-user"
+            >
+              {deleteUserMutation.isPending && (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              )}
+              Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+    </Layout>
   );
 }

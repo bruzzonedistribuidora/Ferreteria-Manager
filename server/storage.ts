@@ -1071,6 +1071,18 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async updateUser(userId: string, data: Partial<User>): Promise<User> {
+    const [updated] = await db.update(users)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, userId));
+  }
+
   // === Initial Setup ===
   async seedDefaultRolesAndModules(): Promise<void> {
     const existingRoles = await db.select().from(roles);
