@@ -58,7 +58,11 @@ import {
   type CustomerOrderItem, type InsertCustomerOrderItem,
   type PriceList, type InsertPriceList,
   type LoyaltyProgram, type InsertLoyaltyProgram,
-  type ClientLoyaltyPoints
+  type ClientLoyaltyPoints,
+  employees, payrollPayments, employeeAdvances,
+  type Employee, type InsertEmployee,
+  type PayrollPayment, type InsertPayrollPayment,
+  type EmployeeAdvance, type InsertEmployeeAdvance
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -2839,6 +2843,74 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { updated: updateCount };
+  }
+
+  // === EMPLOYEES ===
+  async getEmployees(): Promise<Employee[]> {
+    return await db.select().from(employees).orderBy(employees.lastName);
+  }
+
+  async createEmployee(data: InsertEmployee): Promise<Employee> {
+    const [employee] = await db.insert(employees).values(data).returning();
+    return employee;
+  }
+
+  async updateEmployee(id: number, data: Partial<Employee>): Promise<Employee> {
+    const [updated] = await db.update(employees)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(employees.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteEmployee(id: number): Promise<void> {
+    await db.update(employees)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(employees.id, id));
+  }
+
+  // === PAYROLL PAYMENTS ===
+  async getPayrollPayments(): Promise<PayrollPayment[]> {
+    return await db.select().from(payrollPayments).orderBy(desc(payrollPayments.paymentDate));
+  }
+
+  async createPayrollPayment(data: InsertPayrollPayment): Promise<PayrollPayment> {
+    const [payment] = await db.insert(payrollPayments).values(data).returning();
+    return payment;
+  }
+
+  async markPayrollPaymentPaid(id: number): Promise<PayrollPayment> {
+    const [updated] = await db.update(payrollPayments)
+      .set({ status: 'paid', paidAt: new Date(), updatedAt: new Date() })
+      .where(eq(payrollPayments.id, id))
+      .returning();
+    return updated;
+  }
+
+  // === EMPLOYEE ADVANCES ===
+  async getEmployeeAdvances(): Promise<EmployeeAdvance[]> {
+    return await db.select().from(employeeAdvances).orderBy(desc(employeeAdvances.requestDate));
+  }
+
+  async createEmployeeAdvance(data: InsertEmployeeAdvance): Promise<EmployeeAdvance> {
+    const [advance] = await db.insert(employeeAdvances).values(data).returning();
+    return advance;
+  }
+
+  async approveEmployeeAdvance(id: number): Promise<EmployeeAdvance> {
+    const [updated] = await db.update(employeeAdvances)
+      .set({ status: 'approved', approvedAt: new Date(), updatedAt: new Date() })
+      .where(eq(employeeAdvances.id, id))
+      .returning();
+    return updated;
+  }
+
+  async payEmployeeAdvance(id: number): Promise<EmployeeAdvance> {
+    const [updated] = await db.update(employeeAdvances)
+      .set({ status: 'paid', paidAt: new Date(), updatedAt: new Date() })
+      .where(eq(employeeAdvances.id, id))
+      .returning();
+    return updated;
   }
 }
 

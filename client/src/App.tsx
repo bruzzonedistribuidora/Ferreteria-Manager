@@ -36,6 +36,7 @@ import PriceLists from "@/pages/PriceLists";
 import Loyalty from "@/pages/Loyalty";
 import Reports from "@/pages/Reports";
 import Finance from "@/pages/Finance";
+import PayrollPayments from "@/pages/PayrollPayments";
 import BulkEdit from "@/pages/BulkEdit";
 import Integrations from "@/pages/Integrations";
 import PurchasesAI from "@/pages/PurchasesAI";
@@ -123,6 +124,7 @@ function Router() {
       <Route path="/balances" component={Balances} />
       <Route path="/installments" component={InternalInstallments} />
       <Route path="/finance" component={Finance} />
+      <Route path="/payroll" component={PayrollPayments} />
       <Route path="/reports" component={Reports} />
       <Route path="/users" component={Users} />
       

@@ -90,6 +90,7 @@ const menuGroups: MenuGroup[] = [
       { icon: TrendingUp, label: "Finanzas", href: "/finance" },
       { icon: FileSpreadsheet, label: "Informes e IVA", href: "/reports" },
       { icon: UserCog, label: "Personal y Accesos", href: "/users" },
+      { icon: DollarSign, label: "Pagos a Personal", href: "/payroll" },
     ]
   },
   {

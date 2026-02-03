@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, numeric, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, numeric, jsonb, varchar, decimal } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -1370,6 +1370,74 @@ export type InsertClientLoyaltyPoints = z.infer<typeof insertClientLoyaltyPoints
 export type InsertLoyaltyTransaction = z.infer<typeof insertLoyaltyTransactionSchema>;
 export type InsertPriceList = z.infer<typeof insertPriceListSchema>;
 export type InsertPriceListItem = z.infer<typeof insertPriceListItemSchema>;
+
+// === EMPLOYEES & PAYROLL ===
+export const employees = pgTable("employees", {
+  id: serial("id").primaryKey(),
+  firstName: varchar("first_name", { length: 100 }).notNull(),
+  lastName: varchar("last_name", { length: 100 }).notNull(),
+  documentId: varchar("document_id", { length: 20 }),
+  phone: varchar("phone", { length: 50 }),
+  email: varchar("email", { length: 255 }),
+  address: text("address"),
+  position: varchar("position", { length: 100 }),
+  department: varchar("department", { length: 100 }),
+  hireDate: timestamp("hire_date"),
+  baseSalary: decimal("base_salary", { precision: 12, scale: 2 }).default("0"),
+  paymentFrequency: varchar("payment_frequency", { length: 20 }).default("monthly"), // monthly, biweekly, weekly
+  bankName: varchar("bank_name", { length: 100 }),
+  bankAccount: varchar("bank_account", { length: 50 }),
+  cbu: varchar("cbu", { length: 30 }),
+  notes: text("notes"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const payrollPayments = pgTable("payroll_payments", {
+  id: serial("id").primaryKey(),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  paymentType: varchar("payment_type", { length: 30 }).notNull(), // salary, advance, bonus, vacation, aguinaldo, liquidation
+  paymentDate: timestamp("payment_date").notNull().defaultNow(),
+  period: varchar("period", { length: 20 }), // "2026-01", "2026-02", etc.
+  grossAmount: decimal("gross_amount", { precision: 12, scale: 2 }).notNull(),
+  deductions: decimal("deductions", { precision: 12, scale: 2 }).default("0"),
+  advances: decimal("advances", { precision: 12, scale: 2 }).default("0"), // deducted advances
+  netAmount: decimal("net_amount", { precision: 12, scale: 2 }).notNull(),
+  paymentMethod: varchar("payment_method", { length: 30 }), // cash, transfer, check
+  referenceNumber: varchar("reference_number", { length: 100 }),
+  notes: text("notes"),
+  status: varchar("status", { length: 20 }).default("pending"), // pending, paid, cancelled
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const employeeAdvances = pgTable("employee_advances", {
+  id: serial("id").primaryKey(),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  requestDate: timestamp("request_date").notNull().defaultNow(),
+  reason: text("reason"),
+  status: varchar("status", { length: 20 }).default("pending"), // pending, approved, paid, rejected, deducted
+  approvedAt: timestamp("approved_at"),
+  paidAt: timestamp("paid_at"),
+  deductedInPaymentId: integer("deducted_in_payment_id").references(() => payrollPayments.id),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertEmployeeSchema = createInsertSchema(employees).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPayrollPaymentSchema = createInsertSchema(payrollPayments).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEmployeeAdvanceSchema = createInsertSchema(employeeAdvances).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type Employee = typeof employees.$inferSelect;
+export type PayrollPayment = typeof payrollPayments.$inferSelect;
+export type EmployeeAdvance = typeof employeeAdvances.$inferSelect;
+export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
+export type InsertPayrollPayment = z.infer<typeof insertPayrollPaymentSchema>;
+export type InsertEmployeeAdvance = z.infer<typeof insertEmployeeAdvanceSchema>;
 
 // Composite types
 export type PurchaseOrderWithDetails = PurchaseOrder & {

@@ -1971,5 +1971,95 @@ export async function registerRoutes(
     }
   });
 
+  // === EMPLOYEES ROUTES ===
+  app.get("/api/employees", isAuthenticated, async (req, res) => {
+    const employees = await storage.getEmployees();
+    res.json(employees);
+  });
+
+  app.post("/api/employees", isAuthenticated, async (req, res) => {
+    try {
+      const employee = await storage.createEmployee(req.body);
+      res.status(201).json(employee);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al crear empleado" });
+    }
+  });
+
+  app.put("/api/employees/:id", isAuthenticated, async (req, res) => {
+    try {
+      const employee = await storage.updateEmployee(Number(req.params.id), req.body);
+      res.json(employee);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al actualizar empleado" });
+    }
+  });
+
+  app.delete("/api/employees/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteEmployee(Number(req.params.id));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al eliminar empleado" });
+    }
+  });
+
+  // === PAYROLL PAYMENTS ROUTES ===
+  app.get("/api/payroll-payments", isAuthenticated, async (req, res) => {
+    const payments = await storage.getPayrollPayments();
+    res.json(payments);
+  });
+
+  app.post("/api/payroll-payments", isAuthenticated, async (req, res) => {
+    try {
+      const payment = await storage.createPayrollPayment(req.body);
+      res.status(201).json(payment);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al crear pago" });
+    }
+  });
+
+  app.put("/api/payroll-payments/:id/pay", isAuthenticated, async (req, res) => {
+    try {
+      const payment = await storage.markPayrollPaymentPaid(Number(req.params.id));
+      res.json(payment);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al marcar como pagado" });
+    }
+  });
+
+  // === EMPLOYEE ADVANCES ROUTES ===
+  app.get("/api/employee-advances", isAuthenticated, async (req, res) => {
+    const advances = await storage.getEmployeeAdvances();
+    res.json(advances);
+  });
+
+  app.post("/api/employee-advances", isAuthenticated, async (req, res) => {
+    try {
+      const advance = await storage.createEmployeeAdvance(req.body);
+      res.status(201).json(advance);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al crear adelanto" });
+    }
+  });
+
+  app.put("/api/employee-advances/:id/approve", isAuthenticated, async (req, res) => {
+    try {
+      const advance = await storage.approveEmployeeAdvance(Number(req.params.id));
+      res.json(advance);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al aprobar adelanto" });
+    }
+  });
+
+  app.put("/api/employee-advances/:id/pay", isAuthenticated, async (req, res) => {
+    try {
+      const advance = await storage.payEmployeeAdvance(Number(req.params.id));
+      res.json(advance);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al pagar adelanto" });
+    }
+  });
+
   return httpServer;
 }
