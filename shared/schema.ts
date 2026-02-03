@@ -1282,9 +1282,91 @@ export const loyaltyProgram = pgTable("loyalty_program", {
   currencyPerPoint: numeric("currency_per_point", { precision: 8, scale: 4 }).default("0.01"), // $0.01 por punto
   minPointsRedemption: integer("min_points_redemption").default(100),
   maxDiscountPercent: numeric("max_discount_percent", { precision: 5, scale: 2 }).default("10"),
+  pointsExpireDays: integer("points_expire_days").default(365),
+  welcomePoints: integer("welcome_points").default(0),
+  birthdayPoints: integer("birthday_points").default(0),
+  companyWhatsapp: text("company_whatsapp"),
+  companyEmail: text("company_email"),
+  companyName: text("company_name"),
+  companyLogo: text("company_logo"),
+  portalWelcomeMessage: text("portal_welcome_message").default("¡Bienvenido a nuestro portal de clientes!"),
+  portalBannerUrl: text("portal_banner_url"),
   isActive: boolean("is_active").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// === LOYALTY COUPONS (Cupones de Descuento) ===
+export const loyaltyCoupons = pgTable("loyalty_coupons", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  discountType: text("discount_type").notNull().default("percentage"), // percentage, fixed, points
+  discountValue: numeric("discount_value", { precision: 10, scale: 2 }).notNull(),
+  minPurchaseAmount: numeric("min_purchase_amount", { precision: 10, scale: 2 }).default("0"),
+  maxDiscountAmount: numeric("max_discount_amount", { precision: 10, scale: 2 }),
+  usageLimit: integer("usage_limit"), // null = unlimited
+  usageCount: integer("usage_count").default(0),
+  perClientLimit: integer("per_client_limit").default(1),
+  validFrom: timestamp("valid_from"),
+  validTo: timestamp("valid_to"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === COUPON REDEMPTIONS (Historial de uso de cupones) ===
+export const couponRedemptions = pgTable("coupon_redemptions", {
+  id: serial("id").primaryKey(),
+  couponId: integer("coupon_id").notNull().references(() => loyaltyCoupons.id),
+  clientId: integer("client_id").references(() => clients.id),
+  saleId: integer("sale_id").references(() => sales.id),
+  discountApplied: numeric("discount_applied", { precision: 10, scale: 2 }).notNull(),
+  redeemedAt: timestamp("redeemed_at").defaultNow(),
+});
+
+// === LOYALTY OFFERS (Ofertas y Publicidad para Portal) ===
+export const loyaltyOffers = pgTable("loyalty_offers", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  offerType: text("offer_type").notNull().default("promotion"), // promotion, featured_product, banner, news
+  productId: integer("product_id").references(() => products.id),
+  discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }),
+  linkUrl: text("link_url"),
+  displayOrder: integer("display_order").default(0),
+  showInPortal: boolean("show_in_portal").default(true),
+  showInEcommerce: boolean("show_in_ecommerce").default(false),
+  validFrom: timestamp("valid_from"),
+  validTo: timestamp("valid_to"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === CUSTOMER PORTAL ACCESS TOKENS (Para login sin contraseña) ===
+export const customerPortalTokens = pgTable("customer_portal_tokens", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id),
+  token: text("token").notNull().unique(),
+  lastAccess: timestamp("last_access"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === PAYMENT REQUESTS (Solicitudes de pago desde portal) ===
+export const paymentRequests = pgTable("payment_requests", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  paymentMethod: text("payment_method").notNull(), // transfer, mercadopago, etc.
+  referenceNumber: text("reference_number"),
+  proofImageUrl: text("proof_image_url"),
+  notes: text("notes"),
+  status: text("status").default("pending"), // pending, approved, rejected
+  processedBy: text("processed_by").references(() => users.id),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const clientLoyaltyPoints = pgTable("client_loyalty_points", {
@@ -1346,6 +1428,11 @@ export const insertCustomerOrderItemSchema = createInsertSchema(customerOrderIte
 export const insertLoyaltyProgramSchema = createInsertSchema(loyaltyProgram).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertClientLoyaltyPointsSchema = createInsertSchema(clientLoyaltyPoints).omit({ id: true, updatedAt: true });
 export const insertLoyaltyTransactionSchema = createInsertSchema(loyaltyTransactions).omit({ id: true, createdAt: true });
+export const insertLoyaltyCouponSchema = createInsertSchema(loyaltyCoupons).omit({ id: true, createdAt: true, usageCount: true });
+export const insertCouponRedemptionSchema = createInsertSchema(couponRedemptions).omit({ id: true, redeemedAt: true });
+export const insertLoyaltyOfferSchema = createInsertSchema(loyaltyOffers).omit({ id: true, createdAt: true });
+export const insertCustomerPortalTokenSchema = createInsertSchema(customerPortalTokens).omit({ id: true, createdAt: true });
+export const insertPaymentRequestSchema = createInsertSchema(paymentRequests).omit({ id: true, createdAt: true, processedAt: true });
 export const insertPriceListSchema = createInsertSchema(priceLists).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPriceListItemSchema = createInsertSchema(priceListItems).omit({ id: true });
 
@@ -1359,6 +1446,11 @@ export type CustomerOrderItem = typeof customerOrderItems.$inferSelect;
 export type LoyaltyProgram = typeof loyaltyProgram.$inferSelect;
 export type ClientLoyaltyPoints = typeof clientLoyaltyPoints.$inferSelect;
 export type LoyaltyTransaction = typeof loyaltyTransactions.$inferSelect;
+export type LoyaltyCoupon = typeof loyaltyCoupons.$inferSelect;
+export type CouponRedemption = typeof couponRedemptions.$inferSelect;
+export type LoyaltyOffer = typeof loyaltyOffers.$inferSelect;
+export type CustomerPortalToken = typeof customerPortalTokens.$inferSelect;
+export type PaymentRequest = typeof paymentRequests.$inferSelect;
 export type PriceList = typeof priceLists.$inferSelect;
 export type PriceListItem = typeof priceListItems.$inferSelect;
 
@@ -1371,6 +1463,11 @@ export type InsertCustomerOrderItem = z.infer<typeof insertCustomerOrderItemSche
 export type InsertLoyaltyProgram = z.infer<typeof insertLoyaltyProgramSchema>;
 export type InsertClientLoyaltyPoints = z.infer<typeof insertClientLoyaltyPointsSchema>;
 export type InsertLoyaltyTransaction = z.infer<typeof insertLoyaltyTransactionSchema>;
+export type InsertLoyaltyCoupon = z.infer<typeof insertLoyaltyCouponSchema>;
+export type InsertCouponRedemption = z.infer<typeof insertCouponRedemptionSchema>;
+export type InsertLoyaltyOffer = z.infer<typeof insertLoyaltyOfferSchema>;
+export type InsertCustomerPortalToken = z.infer<typeof insertCustomerPortalTokenSchema>;
+export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;
 export type InsertPriceList = z.infer<typeof insertPriceListSchema>;
 export type InsertPriceListItem = z.infer<typeof insertPriceListItemSchema>;
 

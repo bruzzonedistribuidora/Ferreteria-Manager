@@ -14,6 +14,7 @@ import {
   purchaseOrders, purchaseOrderItems, quotes, quoteItems,
   customerOrders, customerOrderItems, priceLists, priceListItems,
   loyaltyProgram, clientLoyaltyPoints, loyaltyTransactions,
+  loyaltyCoupons, couponRedemptions, loyaltyOffers, customerPortalTokens, paymentRequests,
   type Product, type InsertProduct,
   type Category,
   type Client, type InsertClient,
@@ -58,7 +59,11 @@ import {
   type CustomerOrderItem, type InsertCustomerOrderItem,
   type PriceList, type InsertPriceList,
   type LoyaltyProgram, type InsertLoyaltyProgram,
-  type ClientLoyaltyPoints,
+  type ClientLoyaltyPoints, type LoyaltyTransaction,
+  type LoyaltyCoupon, type InsertLoyaltyCoupon,
+  type LoyaltyOffer, type InsertLoyaltyOffer,
+  type CustomerPortalToken, type InsertCustomerPortalToken,
+  type PaymentRequest, type InsertPaymentRequest,
   employees, payrollPayments, employeeAdvances,
   type Employee, type InsertEmployee,
   type PayrollPayment, type InsertPayrollPayment,
@@ -2911,6 +2916,251 @@ export class DatabaseStorage implements IStorage {
       .where(eq(employeeAdvances.id, id))
       .returning();
     return updated;
+  }
+
+  // === LOYALTY COUPONS ===
+  async getLoyaltyCoupons(): Promise<LoyaltyCoupon[]> {
+    return await db.select().from(loyaltyCoupons).orderBy(desc(loyaltyCoupons.createdAt));
+  }
+
+  async createLoyaltyCoupon(data: InsertLoyaltyCoupon): Promise<LoyaltyCoupon> {
+    const [coupon] = await db.insert(loyaltyCoupons).values(data).returning();
+    return coupon;
+  }
+
+  async updateLoyaltyCoupon(id: number, data: Partial<LoyaltyCoupon>): Promise<LoyaltyCoupon> {
+    const [updated] = await db.update(loyaltyCoupons)
+      .set(data)
+      .where(eq(loyaltyCoupons.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteLoyaltyCoupon(id: number): Promise<void> {
+    await db.delete(loyaltyCoupons).where(eq(loyaltyCoupons.id, id));
+  }
+
+  // === LOYALTY OFFERS ===
+  async getLoyaltyOffers(): Promise<LoyaltyOffer[]> {
+    return await db.select().from(loyaltyOffers).orderBy(loyaltyOffers.displayOrder);
+  }
+
+  async createLoyaltyOffer(data: InsertLoyaltyOffer): Promise<LoyaltyOffer> {
+    const [offer] = await db.insert(loyaltyOffers).values(data).returning();
+    return offer;
+  }
+
+  async updateLoyaltyOffer(id: number, data: Partial<LoyaltyOffer>): Promise<LoyaltyOffer> {
+    const [updated] = await db.update(loyaltyOffers)
+      .set(data)
+      .where(eq(loyaltyOffers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteLoyaltyOffer(id: number): Promise<void> {
+    await db.delete(loyaltyOffers).where(eq(loyaltyOffers.id, id));
+  }
+
+  async getActivePortalOffers(): Promise<LoyaltyOffer[]> {
+    const now = new Date();
+    return await db.select().from(loyaltyOffers)
+      .where(and(
+        eq(loyaltyOffers.isActive, true),
+        eq(loyaltyOffers.showInPortal, true),
+        or(
+          sql`${loyaltyOffers.validFrom} IS NULL`,
+          lte(loyaltyOffers.validFrom, now)
+        ),
+        or(
+          sql`${loyaltyOffers.validTo} IS NULL`,
+          gte(loyaltyOffers.validTo, now)
+        )
+      ))
+      .orderBy(loyaltyOffers.displayOrder);
+  }
+
+  // === PAYMENT REQUESTS ===
+  async getPaymentRequests(): Promise<(PaymentRequest & { client: Client })[]> {
+    const result = await db.select({
+      id: paymentRequests.id,
+      clientId: paymentRequests.clientId,
+      amount: paymentRequests.amount,
+      paymentMethod: paymentRequests.paymentMethod,
+      referenceNumber: paymentRequests.referenceNumber,
+      proofImageUrl: paymentRequests.proofImageUrl,
+      notes: paymentRequests.notes,
+      status: paymentRequests.status,
+      processedBy: paymentRequests.processedBy,
+      processedAt: paymentRequests.processedAt,
+      createdAt: paymentRequests.createdAt,
+      client: clients
+    })
+    .from(paymentRequests)
+    .leftJoin(clients, eq(paymentRequests.clientId, clients.id))
+    .orderBy(desc(paymentRequests.createdAt));
+    
+    return result.map(r => ({
+      ...r,
+      client: r.client!
+    }));
+  }
+
+  async createPaymentRequest(data: InsertPaymentRequest): Promise<PaymentRequest> {
+    const [request] = await db.insert(paymentRequests).values(data).returning();
+    return request;
+  }
+
+  async processPaymentRequest(id: number, status: string, userId?: string, notes?: string): Promise<PaymentRequest> {
+    const [updated] = await db.update(paymentRequests)
+      .set({ 
+        status, 
+        processedBy: userId,
+        processedAt: new Date(),
+        notes: notes
+      })
+      .where(eq(paymentRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  // === CUSTOMER PORTAL ===
+  async portalLogin(identifier: string): Promise<{ token: string; client: Client } | null> {
+    // Find client by DNI/CUIT (taxId field)
+    const cleanIdentifier = identifier.replace(/[-\s]/g, '');
+    
+    const [client] = await db.select().from(clients)
+      .where(
+        or(
+          eq(clients.taxId, cleanIdentifier),
+          eq(clients.taxId, identifier)
+        )
+      )
+      .limit(1);
+    
+    if (!client) return null;
+    
+    // Generate or get existing token
+    const existingToken = await db.select().from(customerPortalTokens)
+      .where(eq(customerPortalTokens.clientId, client.id))
+      .limit(1);
+    
+    let token: string;
+    if (existingToken.length > 0) {
+      // Update last access
+      token = existingToken[0].token;
+      await db.update(customerPortalTokens)
+        .set({ lastAccess: new Date() })
+        .where(eq(customerPortalTokens.id, existingToken[0].id));
+    } else {
+      // Create new token
+      token = nanoid(32);
+      await db.insert(customerPortalTokens).values({
+        clientId: client.id,
+        token
+      });
+    }
+    
+    return { token, client };
+  }
+
+  async getPortalClientData(token: string): Promise<{
+    client: Client;
+    balance: number;
+    movements: ClientAccountMovement[];
+    points: number;
+    pointsTransactions: any[];
+    program: LoyaltyProgram | null;
+  } | null> {
+    // Find token and client
+    const [portalToken] = await db.select().from(customerPortalTokens)
+      .where(eq(customerPortalTokens.token, token))
+      .limit(1);
+    
+    if (!portalToken) return null;
+    
+    // Get client
+    const [client] = await db.select().from(clients)
+      .where(eq(clients.id, portalToken.clientId))
+      .limit(1);
+    
+    if (!client) return null;
+    
+    // Get account balance
+    const movements = await db.select().from(clientAccountMovements)
+      .where(eq(clientAccountMovements.clientId, client.id))
+      .orderBy(desc(clientAccountMovements.createdAt));
+    
+    const balanceResult = movements.length > 0 
+      ? parseFloat(movements[0].balance as string) 
+      : 0;
+    
+    // Get loyalty points
+    const [pointsRecord] = await db.select().from(clientLoyaltyPoints)
+      .where(eq(clientLoyaltyPoints.clientId, client.id))
+      .limit(1);
+    
+    const points = pointsRecord?.points || 0;
+    
+    // Get points transactions
+    const pointsTransactions = await db.select().from(loyaltyTransactions)
+      .where(eq(loyaltyTransactions.clientId, client.id))
+      .orderBy(desc(loyaltyTransactions.createdAt))
+      .limit(20);
+    
+    // Get loyalty program
+    const [program] = await db.select().from(loyaltyProgram).limit(1);
+    
+    return {
+      client,
+      balance: balanceResult,
+      movements: movements.slice(0, 20),
+      points,
+      pointsTransactions,
+      program: program || null
+    };
+  }
+
+  async validateCoupon(code: string, clientId?: number): Promise<{ valid: boolean; coupon?: LoyaltyCoupon; message?: string }> {
+    const [coupon] = await db.select().from(loyaltyCoupons)
+      .where(eq(loyaltyCoupons.code, code.toUpperCase()))
+      .limit(1);
+    
+    if (!coupon) {
+      return { valid: false, message: "Cupón no encontrado" };
+    }
+    
+    if (!coupon.isActive) {
+      return { valid: false, message: "Cupón inactivo" };
+    }
+    
+    const now = new Date();
+    if (coupon.validFrom && coupon.validFrom > now) {
+      return { valid: false, message: "Cupón aún no vigente" };
+    }
+    
+    if (coupon.validTo && coupon.validTo < now) {
+      return { valid: false, message: "Cupón expirado" };
+    }
+    
+    if (coupon.usageLimit && coupon.usageCount && coupon.usageCount >= coupon.usageLimit) {
+      return { valid: false, message: "Cupón agotado" };
+    }
+    
+    // Check per-client limit
+    if (clientId && coupon.perClientLimit) {
+      const usages = await db.select({ count: count() }).from(couponRedemptions)
+        .where(and(
+          eq(couponRedemptions.couponId, coupon.id),
+          eq(couponRedemptions.clientId, clientId)
+        ));
+      
+      if (usages[0].count >= coupon.perClientLimit) {
+        return { valid: false, message: "Ya usaste este cupón" };
+      }
+    }
+    
+    return { valid: true, coupon };
   }
 }
 

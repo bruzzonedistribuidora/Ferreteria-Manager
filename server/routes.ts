@@ -2142,6 +2142,141 @@ export async function registerRoutes(
     }
   });
 
+  // === LOYALTY COUPONS ROUTES ===
+  app.get("/api/loyalty-coupons", isAuthenticated, async (req, res) => {
+    const coupons = await storage.getLoyaltyCoupons();
+    res.json(coupons);
+  });
+
+  app.post("/api/loyalty-coupons", isAuthenticated, async (req, res) => {
+    try {
+      const coupon = await storage.createLoyaltyCoupon(req.body);
+      res.status(201).json(coupon);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al crear cupón" });
+    }
+  });
+
+  app.put("/api/loyalty-coupons/:id", isAuthenticated, async (req, res) => {
+    try {
+      const coupon = await storage.updateLoyaltyCoupon(Number(req.params.id), req.body);
+      res.json(coupon);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al actualizar cupón" });
+    }
+  });
+
+  app.delete("/api/loyalty-coupons/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLoyaltyCoupon(Number(req.params.id));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al eliminar cupón" });
+    }
+  });
+
+  // === LOYALTY OFFERS ROUTES ===
+  app.get("/api/loyalty-offers", isAuthenticated, async (req, res) => {
+    const offers = await storage.getLoyaltyOffers();
+    res.json(offers);
+  });
+
+  app.post("/api/loyalty-offers", isAuthenticated, async (req, res) => {
+    try {
+      const offer = await storage.createLoyaltyOffer(req.body);
+      res.status(201).json(offer);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al crear oferta" });
+    }
+  });
+
+  app.put("/api/loyalty-offers/:id", isAuthenticated, async (req, res) => {
+    try {
+      const offer = await storage.updateLoyaltyOffer(Number(req.params.id), req.body);
+      res.json(offer);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al actualizar oferta" });
+    }
+  });
+
+  app.delete("/api/loyalty-offers/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLoyaltyOffer(Number(req.params.id));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al eliminar oferta" });
+    }
+  });
+
+  // === PAYMENT REQUESTS ROUTES ===
+  app.get("/api/payment-requests", isAuthenticated, async (req, res) => {
+    const requests = await storage.getPaymentRequests();
+    res.json(requests);
+  });
+
+  app.put("/api/payment-requests/:id/process", isAuthenticated, async (req, res) => {
+    try {
+      const { status, notes } = req.body;
+      const userId = req.user?.claims?.sub;
+      const request = await storage.processPaymentRequest(Number(req.params.id), status, userId, notes);
+      res.json(request);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al procesar solicitud" });
+    }
+  });
+
+  // === CUSTOMER PORTAL ROUTES (PUBLIC - No auth required) ===
+  app.post("/api/portal/login", async (req, res) => {
+    try {
+      const { identifier } = req.body; // DNI or CUIT
+      const result = await storage.portalLogin(identifier);
+      if (result) {
+        res.json(result);
+      } else {
+        res.status(404).json({ message: "No se encontró cliente con ese DNI/CUIT" });
+      }
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al iniciar sesión" });
+    }
+  });
+
+  app.get("/api/portal/client/:token", async (req, res) => {
+    try {
+      const data = await storage.getPortalClientData(req.params.token);
+      if (data) {
+        res.json(data);
+      } else {
+        res.status(404).json({ message: "Sesión no válida o expirada" });
+      }
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al obtener datos" });
+    }
+  });
+
+  app.get("/api/portal/offers", async (req, res) => {
+    const offers = await storage.getActivePortalOffers();
+    res.json(offers);
+  });
+
+  app.post("/api/portal/validate-coupon", async (req, res) => {
+    try {
+      const { code, clientId } = req.body;
+      const result = await storage.validateCoupon(code, clientId);
+      res.json(result);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message || "Cupón no válido" });
+    }
+  });
+
+  app.post("/api/portal/payment-request", async (req, res) => {
+    try {
+      const request = await storage.createPaymentRequest(req.body);
+      res.status(201).json(request);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al enviar solicitud de pago" });
+    }
+  });
+
   // === FINANCIAL AI ASSISTANT ===
   app.post("/api/finance-ai/chat", isAuthenticated, async (req, res) => {
     try {
