@@ -29,7 +29,8 @@ import {
   DollarSign,
   FileSpreadsheet,
   Settings,
-  Plug
+  Plug,
+  Brain
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -88,6 +89,7 @@ const menuGroups: MenuGroup[] = [
       { icon: Scale, label: "Saldos y Deudas", href: "/balances" },
       { icon: Calculator, label: "Cuotas Internas", href: "/installments" },
       { icon: TrendingUp, label: "Finanzas", href: "/finance" },
+      { icon: Brain, label: "Inteligencia Financiera", href: "/finance-intelligence" },
       { icon: FileSpreadsheet, label: "Informes e IVA", href: "/reports" },
       { icon: UserCog, label: "Personal y Accesos", href: "/users" },
       { icon: DollarSign, label: "Pagos a Personal", href: "/payroll" },

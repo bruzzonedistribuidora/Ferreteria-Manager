@@ -41,6 +41,7 @@ import BulkEdit from "@/pages/BulkEdit";
 import Integrations from "@/pages/Integrations";
 import PurchasesAI from "@/pages/PurchasesAI";
 import InternalInstallments from "@/pages/InternalInstallments";
+import FinanceIntelligence from "@/pages/FinanceIntelligence";
 
 function PrivateRoute({ component: Component, ...rest }: any) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -125,6 +126,7 @@ function Router() {
       <Route path="/installments" component={InternalInstallments} />
       <Route path="/finance" component={Finance} />
       <Route path="/payroll" component={PayrollPayments} />
+      <Route path="/finance-intelligence" component={FinanceIntelligence} />
       <Route path="/reports" component={Reports} />
       <Route path="/users" component={Users} />
       
