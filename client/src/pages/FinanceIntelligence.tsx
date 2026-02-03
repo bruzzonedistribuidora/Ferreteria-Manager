@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Brain, 
   TrendingUp, 
@@ -31,7 +34,12 @@ import {
   Sparkles,
   MessageSquare,
   Loader2,
-  Lightbulb
+  Lightbulb,
+  Calculator as CalculatorIcon,
+  CircleDollarSign,
+  ThumbsUp,
+  ThumbsDown,
+  Zap
 } from "lucide-react";
 import { 
   LineChart, 
@@ -270,6 +278,97 @@ export default function FinanceIntelligence() {
     "Dame ideas para hacer crecer mi ferretería",
   ];
 
+  // Expense Simulator State
+  const [expenseType, setExpenseType] = useState<string>("sueldo");
+  const [expenseAmount, setExpenseAmount] = useState<string>("");
+  const [expenseDescription, setExpenseDescription] = useState<string>("");
+  const [simulationResult, setSimulationResult] = useState<{
+    canAfford: boolean;
+    analysis: string;
+    impact: {
+      newProfit: number;
+      profitChange: number;
+      newBreakEven: number;
+      daysToRecover: number;
+    };
+  } | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  const simulateExpense = async () => {
+    const amount = parseFloat(expenseAmount);
+    if (isNaN(amount) || amount <= 0) return;
+
+    setIsSimulating(true);
+    
+    // Calculate impact locally first
+    const isRecurring = expenseType === "sueldo" || expenseType === "servicio";
+    const monthlyImpact = isRecurring ? amount : amount / 12;
+    const newFixedCosts = fixedCostsMonthly + monthlyImpact;
+    const newBreakEven = calculateBreakEven(newFixedCosts, grossMarginRatio);
+    const newProfit = totalMonth * grossMarginRatio - newFixedCosts;
+    const profitChange = newProfit - profitMonthly;
+    const avgDailySales = totalMonth / (now.getDate() || 1);
+    const daysToRecover = avgDailySales > 0 ? Math.ceil(amount / (avgDailySales * grossMarginRatio)) : 999;
+
+    const canAfford = newProfit >= 0;
+
+    // Ask AI for detailed analysis
+    try {
+      const response = await fetch("/api/finance-ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Analiza si puedo permitirme este gasto: ${expenseDescription || expenseType} por ${formatCurrency(amount)}. 
+          Tipo: ${expenseType === "sueldo" ? "Sueldo mensual recurrente" : expenseType === "servicio" ? "Servicio mensual recurrente" : "Compra única"}.
+          
+          Con este gasto:
+          - Mi utilidad mensual pasaría de ${formatCurrency(profitMonthly)} a ${formatCurrency(newProfit)}
+          - El punto de equilibrio mensual subiría a ${formatCurrency(newBreakEven)}
+          - Tardaría ${daysToRecover} días en recuperar la inversión
+          
+          Dame una recomendación clara: ¿Es viable o no? ¿Qué debería considerar?`,
+          financialData: { ...financialData, gastoSimulado: amount, tipoGasto: expenseType }
+        }),
+      });
+
+      let analysis = "";
+      const reader = response.body?.getReader();
+      if (reader) {
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.content) analysis += data.content;
+              } catch {}
+            }
+          }
+        }
+      }
+
+      setSimulationResult({
+        canAfford,
+        analysis: analysis || "No se pudo obtener análisis detallado.",
+        impact: { newProfit, profitChange, newBreakEven, daysToRecover }
+      });
+    } catch {
+      setSimulationResult({
+        canAfford,
+        analysis: canAfford 
+          ? "Según los números, este gasto es viable. Tu utilidad seguiría siendo positiva."
+          : "Este gasto pondría tu utilidad en negativo. Considera alternativas o espera a mejorar las ventas.",
+        impact: { newProfit, profitChange, newBreakEven, daysToRecover }
+      });
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
   const BreakEvenCard = ({ 
     title, 
     icon: Icon, 
@@ -363,7 +462,7 @@ export default function FinanceIntelligence() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 lg:w-auto lg:inline-grid">
             <TabsTrigger value="equilibrio" data-testid="tab-equilibrio">
               <Target className="h-4 w-4 mr-2" />
               Punto de Equilibrio
@@ -379,6 +478,10 @@ export default function FinanceIntelligence() {
             <TabsTrigger value="analitica" data-testid="tab-analitica">
               <PieChart className="h-4 w-4 mr-2" />
               Analítica
+            </TabsTrigger>
+            <TabsTrigger value="simulador" data-testid="tab-simulador">
+              <Zap className="h-4 w-4 mr-2" />
+              Simulador
             </TabsTrigger>
             <TabsTrigger value="asistente" data-testid="tab-asistente">
               <Sparkles className="h-4 w-4 mr-2" />
@@ -918,6 +1021,214 @@ export default function FinanceIntelligence() {
                       </div>
                     ))}
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="simulador" className="space-y-6 mt-6">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-orange-500" />
+                    Simulador de Gastos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Simula un gasto extra para ver si tu negocio puede permitírselo según los números actuales.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Tipo de gasto</Label>
+                      <Select value={expenseType} onValueChange={setExpenseType}>
+                        <SelectTrigger data-testid="select-expense-type">
+                          <SelectValue placeholder="Seleccionar tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sueldo">Sueldo mensual (empleado nuevo)</SelectItem>
+                          <SelectItem value="servicio">Servicio mensual (alquiler, luz, etc.)</SelectItem>
+                          <SelectItem value="compra">Compra única (herramienta, vehículo, etc.)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Monto ($)</Label>
+                      <Input
+                        type="number"
+                        placeholder="Ej: 150000"
+                        value={expenseAmount}
+                        onChange={(e) => setExpenseAmount(e.target.value)}
+                        data-testid="input-expense-amount"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Descripción (opcional)</Label>
+                      <Input
+                        placeholder="Ej: Nuevo empleado de ventas"
+                        value={expenseDescription}
+                        onChange={(e) => setExpenseDescription(e.target.value)}
+                        data-testid="input-expense-description"
+                      />
+                    </div>
+
+                    <Button
+                      onClick={simulateExpense}
+                      disabled={isSimulating || !expenseAmount}
+                      className="w-full"
+                      data-testid="button-simulate"
+                    >
+                      {isSimulating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Analizando...
+                        </>
+                      ) : (
+                        <>
+                          <CalculatorIcon className="h-4 w-4 mr-2" />
+                          Simular Gasto
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  <div className="pt-4 border-t">
+                    <h4 className="text-sm font-medium mb-3">Ejemplos de simulación:</h4>
+                    <div className="space-y-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setExpenseType("sueldo");
+                          setExpenseAmount("250000");
+                          setExpenseDescription("Nuevo empleado de ventas");
+                        }}
+                      >
+                        <CircleDollarSign className="h-4 w-4 mr-2" />
+                        Nuevo empleado ($250.000/mes)
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setExpenseType("compra");
+                          setExpenseAmount("500000");
+                          setExpenseDescription("Camioneta para entregas");
+                        }}
+                      >
+                        <CircleDollarSign className="h-4 w-4 mr-2" />
+                        Camioneta entregas ($500.000)
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setExpenseType("servicio");
+                          setExpenseAmount("80000");
+                          setExpenseDescription("Sistema de seguridad");
+                        }}
+                      >
+                        <CircleDollarSign className="h-4 w-4 mr-2" />
+                        Servicio seguridad ($80.000/mes)
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    {simulationResult ? (
+                      simulationResult.canAfford ? (
+                        <ThumbsUp className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <ThumbsDown className="h-5 w-5 text-red-500" />
+                      )
+                    ) : (
+                      <BarChart3 className="h-5 w-5 text-slate-400" />
+                    )}
+                    Resultado de la Simulación
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {!simulationResult ? (
+                    <div className="flex flex-col items-center justify-center h-[300px] text-center text-muted-foreground">
+                      <CalculatorIcon className="h-12 w-12 mb-4 text-slate-300" />
+                      <p className="text-sm">
+                        Ingresa un gasto para ver si tu negocio puede permitírselo
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className={`p-4 rounded-lg ${simulationResult.canAfford ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {simulationResult.canAfford ? (
+                            <>
+                              <ThumbsUp className="h-5 w-5 text-green-600" />
+                              <span className="font-semibold text-green-700">¡Viable!</span>
+                            </>
+                          ) : (
+                            <>
+                              <ThumbsDown className="h-5 w-5 text-red-600" />
+                              <span className="font-semibold text-red-700">No recomendado</span>
+                            </>
+                          )}
+                        </div>
+                        <p className={`text-sm ${simulationResult.canAfford ? 'text-green-700' : 'text-red-700'}`}>
+                          {simulationResult.canAfford 
+                            ? "Tu negocio puede absorber este gasto manteniendo utilidad positiva."
+                            : "Este gasto pondría tu utilidad mensual en negativo."}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 bg-slate-50 rounded-lg">
+                          <p className="text-xs text-muted-foreground">Nueva utilidad mensual</p>
+                          <p className={`font-bold ${simulationResult.impact.newProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(simulationResult.impact.newProfit)}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-lg">
+                          <p className="text-xs text-muted-foreground">Cambio en utilidad</p>
+                          <p className="font-bold text-red-600">
+                            {formatCurrency(simulationResult.impact.profitChange)}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-lg">
+                          <p className="text-xs text-muted-foreground">Nuevo punto equilibrio</p>
+                          <p className="font-bold text-orange-600">
+                            {formatCurrency(simulationResult.impact.newBreakEven)}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-lg">
+                          <p className="text-xs text-muted-foreground">Días para recuperar</p>
+                          <p className="font-bold text-blue-600">
+                            {simulationResult.impact.daysToRecover} días
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t">
+                        <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-orange-500" />
+                          Análisis del Asistente IA
+                        </h4>
+                        <ScrollArea className="h-[200px]">
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                            {simulationResult.analysis}
+                          </p>
+                        </ScrollArea>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
