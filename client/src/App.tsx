@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 
 import Dashboard from "@/pages/Dashboard";
 import Products from "@/pages/Products";
@@ -148,12 +149,19 @@ function Router() {
   );
 }
 
+function RealtimeWrapper({ children }: { children: React.ReactNode }) {
+  const { isConnected } = useRealtimeSync();
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <RealtimeWrapper>
+          <Toaster />
+          <Router />
+        </RealtimeWrapper>
       </TooltipProvider>
     </QueryClientProvider>
   );

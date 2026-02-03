@@ -1,11 +1,12 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
+import { type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { isAuthenticated } from "./replit_integrations/auth";
 import OpenAI from "openai";
+import { emitDataChange } from "./websocket";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -38,6 +39,7 @@ export async function registerRoutes(
     try {
       const input = api.products.create.input.parse(req.body);
       const product = await storage.createProduct(input);
+      emitDataChange("products");
       res.status(201).json(product);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -132,12 +134,14 @@ export async function registerRoutes(
   app.put(api.products.update.path, isAuthenticated, async (req, res) => {
     const input = api.products.update.input.parse(req.body);
     const product = await storage.updateProduct(Number(req.params.id), input);
+    emitDataChange("products");
     res.json(product);
   });
 
   app.patch("/api/products/:id", isAuthenticated, async (req, res) => {
     try {
       const product = await storage.updateProduct(Number(req.params.id), req.body);
+      emitDataChange("products");
       res.json(product);
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Error al actualizar producto" });
@@ -146,6 +150,7 @@ export async function registerRoutes(
 
   app.delete(api.products.delete.path, isAuthenticated, async (req, res) => {
     await storage.deleteProduct(Number(req.params.id));
+    emitDataChange("products");
     res.status(204).send();
   });
 
@@ -158,16 +163,19 @@ export async function registerRoutes(
   app.post(api.categories.create.path, isAuthenticated, async (req, res) => {
     const input = api.categories.create.input.parse(req.body);
     const category = await storage.createCategory({ name: input.name, description: input.description });
+    emitDataChange("categories");
     res.status(201).json(category);
   });
 
   app.put("/api/categories/:id", isAuthenticated, async (req, res) => {
     const category = await storage.updateCategory(Number(req.params.id), req.body);
+    emitDataChange("categories");
     res.json(category);
   });
 
   app.delete("/api/categories/:id", isAuthenticated, async (req, res) => {
     await storage.deleteCategory(Number(req.params.id));
+    emitDataChange("categories");
     res.status(204).send();
   });
 
@@ -262,17 +270,20 @@ export async function registerRoutes(
   app.post(api.clients.create.path, isAuthenticated, async (req, res) => {
     const input = api.clients.create.input.parse(req.body);
     const client = await storage.createClient(input);
+    emitDataChange("clients");
     res.status(201).json(client);
   });
 
   app.put(api.clients.update.path, isAuthenticated, async (req, res) => {
     const input = api.clients.update.input.parse(req.body);
     const client = await storage.updateClient(Number(req.params.id), input);
+    emitDataChange("clients");
     res.json(client);
   });
 
   app.delete("/api/clients/:id", isAuthenticated, async (req, res) => {
     await storage.deleteClient(Number(req.params.id));
+    emitDataChange("clients");
     res.status(204).send();
   });
 
@@ -421,11 +432,13 @@ export async function registerRoutes(
 
   app.put("/api/suppliers/:id", isAuthenticated, async (req, res) => {
     const supplier = await storage.updateSupplier(Number(req.params.id), req.body);
+    emitDataChange("suppliers");
     res.json(supplier);
   });
 
   app.delete("/api/suppliers/:id", isAuthenticated, async (req, res) => {
     await storage.deleteSupplier(Number(req.params.id));
+    emitDataChange("suppliers");
     res.status(204).send();
   });
 
@@ -511,6 +524,8 @@ export async function registerRoutes(
     const user = req.user as any;
     // user.claims.sub is the replit auth user id
     const sale = await storage.createSale(user.claims.sub, input);
+    emitDataChange("sales");
+    emitDataChange("products"); // Stock changed
     res.status(201).json(sale);
   });
 
@@ -529,6 +544,8 @@ export async function registerRoutes(
     const user = req.user as any;
     const remito = await storage.convertSaleToRemito(Number(req.params.id), user.claims.sub);
     if (!remito) return res.status(404).json({ message: "Sale not found" });
+    emitDataChange("delivery-notes");
+    emitDataChange("sales");
     res.status(201).json(remito);
   });
 
@@ -562,6 +579,7 @@ export async function registerRoutes(
       const input = api.deliveryNotes.create.input.parse(req.body);
       const user = req.user as any;
       const note = await storage.createDeliveryNote(user.claims.sub, input);
+      emitDataChange("delivery-notes");
       res.status(201).json(note);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -574,6 +592,7 @@ export async function registerRoutes(
   app.patch(api.deliveryNotes.updateStatus.path, isAuthenticated, async (req, res) => {
     const { status } = api.deliveryNotes.updateStatus.input.parse(req.body);
     const note = await storage.updateDeliveryNoteStatus(Number(req.params.id), status);
+    emitDataChange("delivery-notes");
     res.json(note);
   });
 
