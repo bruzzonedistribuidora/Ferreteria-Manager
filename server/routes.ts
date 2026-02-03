@@ -124,6 +124,7 @@ export async function registerRoutes(
       };
 
       const product = await storage.createProduct(productData);
+      emitDataChange("products");
       res.status(201).json(product);
     } catch (err: any) {
       console.error("Import error:", err);
@@ -421,6 +422,7 @@ export async function registerRoutes(
       });
       const input = supplierSchema.parse(req.body);
       const supplier = await storage.createSupplier(input);
+      emitDataChange("suppliers");
       res.status(201).json(supplier);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -858,6 +860,7 @@ export async function registerRoutes(
       });
       const input = schema.parse(req.body);
       const method = await storage.createPaymentMethod(input);
+      emitDataChange("payment-methods");
       res.status(201).json(method);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -880,6 +883,7 @@ export async function registerRoutes(
     });
     const input = schema.parse(req.body);
     const method = await storage.updatePaymentMethod(Number(req.params.id), input);
+    emitDataChange("payment-methods");
     res.json(method);
   });
 
@@ -1096,6 +1100,7 @@ export async function registerRoutes(
       });
       const input = schema.parse(req.body);
       const register = await storage.createCashRegister(input);
+      emitDataChange("cash-registers");
       res.status(201).json(register);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -1259,6 +1264,7 @@ export async function registerRoutes(
       const input = schema.parse(req.body);
       const user = req.user as any;
       const check = await storage.createCheck({ ...input, createdBy: user.claims.sub });
+      emitDataChange("checks");
       res.status(201).json(check);
     } catch (err) {
       if (err instanceof z.ZodError) {

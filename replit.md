@@ -15,6 +15,8 @@ Key features include:
 - **Stock Management**: Locations, movements, alerts by min/max levels, multi-warehouse stock
 - **Payment Methods**: Configurable methods, cards with installment plans and surcharges
 - **Dashboard Analytics**: Real-time business metrics and charts
+- **Loyalty & Fidelization**: Customer portal with DNI/CUIT login, points system, coupons, offers, payment requests
+- **Real-time Sync**: WebSocket-based synchronization - all connected devices see changes instantly without refresh
 
 ## User Preferences
 
@@ -84,6 +86,13 @@ Preferred communication style: Simple, everyday language.
 - **Lucide React**: Icon library
 - **Recharts**: Data visualization for dashboard
 - **date-fns**: Date formatting and manipulation
+
+### Real-time Synchronization
+- **Socket.io**: WebSocket-based real-time communication
+- **Server**: `server/websocket.ts` initializes Socket.io and emits data change events
+- **Client**: `client/src/lib/socket.ts` handles connection and auto-invalidates TanStack Query cache
+- **Events**: `data-change` events broadcast to all clients when data is modified (products, clients, sales, etc.)
+- **Auto-refresh**: All connected devices automatically see data updates without manual page refresh
 
 ### Development Tools
 - **Vite**: Frontend build tool and dev server

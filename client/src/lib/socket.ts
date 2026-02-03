@@ -81,7 +81,15 @@ export function initializeSocket(): Socket {
     const queryKeys = eventToQueryKeyMap[payload.type];
     if (queryKeys) {
       queryKeys.forEach((key) => {
-        queryClient.invalidateQueries({ queryKey: [key] });
+        queryClient.invalidateQueries({ 
+          predicate: (query) => {
+            const qk = query.queryKey;
+            if (Array.isArray(qk) && qk.length > 0) {
+              return String(qk[0]).startsWith(key);
+            }
+            return String(qk) === key;
+          }
+        });
       });
     }
   });
